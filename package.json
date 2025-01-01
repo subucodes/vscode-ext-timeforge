@@ -1,0 +1,56 @@
+{
+  "name": "timeforge",
+  "displayName": "TimeForge",
+  "description": "TimeForge helps you stay on track by setting a timer with a progress indicator.",
+  "version": "0.0.1",
+  "publisher": "subbusyntax",
+  "engines": {
+    "vscode": "^1.96.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/subucodes/vscode-ext-project-structure-extractor"
+  },
+  "main": "./extension.js", 
+  "activationEvents": [
+    "onStartupFinished",   
+    "onCommand:timeforge.setTimer", 
+    "onCommand:timeforge.pauseTimer",
+    "onCommand:timeforge.stopTimer"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "timeforge.setTimer",
+        "title": "Set Timer"
+      },
+      {
+        "command": "timeforge.pauseTimer",
+        "title": "Pause Timer"
+      },
+      {
+        "command": "timeforge.stopTimer",
+        "title": "Stop Timer"
+      }
+    ]
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "pretest": "npm run lint",
+    "test": "vscode-test"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "20.x",
+    "@types/vscode": "^1.96.0",
+    "@vscode/test-cli": "^0.0.10",
+    "@vscode/test-electron": "^2.4.1",
+    "eslint": "^9.16.0",
+    "vscode": "^1.1.37"
+  },
+  "dependencies": {
+  }
+}
