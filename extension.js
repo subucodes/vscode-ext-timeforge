@@ -1,9 +1,7 @@
 const vscode = require("vscode");
 
-// Status bar items
+// Status bar item
 let timerStatusBarItem;
-let controlStatusBarItem;
-let stopStatusBarItem;
 
 // Timer variables
 let timer = null;
@@ -13,12 +11,13 @@ let totalTime = 0;
 let isPaused = false;
 let pauseStartTime = 0; // Store the time when the pause occurs
 let timeSpentPaused = 0; // Total time spent during pause
+let clickTimeout = null; // Timeout for detecting double-click
 
 const UPDATE_INTERVAL = 100; // Update interval for smooth updates (100ms)
 
 function activate(context) {
-  // Create status bar items
-  initializeStatusBarItems();
+  // Create status bar item
+  initializeStatusBarItem();
 
   // Register commands
   context.subscriptions.push(
@@ -28,30 +27,36 @@ function activate(context) {
   );
 }
 
-function initializeStatusBarItems() {
+function initializeStatusBarItem() {
   timerStatusBarItem = vscode.window.createStatusBarItem(
-    vscode.StatusBarAlignment.Left,
-    2
-  );
-  controlStatusBarItem = vscode.window.createStatusBarItem(
-    vscode.StatusBarAlignment.Left,
-    1
-  );
-  stopStatusBarItem = vscode.window.createStatusBarItem(
     vscode.StatusBarAlignment.Left,
     0
   );
 
-  timerStatusBarItem.text = "TimeForge";
-  controlStatusBarItem.text = "$(debug-start)";
-  stopStatusBarItem.text = "$(debug-stop)";
-
-  controlStatusBarItem.command = "timeforge.setTimer";
-  stopStatusBarItem.command = "timeforge.stopTimer";
-
+  timerStatusBarItem.text = "$(watch) TimeForge";
+  timerStatusBarItem.command = "timeforge.handleClick";
   timerStatusBarItem.show();
-  controlStatusBarItem.show();
-  stopStatusBarItem.hide();
+
+  vscode.commands.registerCommand("timeforge.handleClick", handleClick);
+}
+
+function handleClick() {
+  if (clickTimeout) {
+    clearTimeout(clickTimeout);
+    clickTimeout = null;
+    if (timer) {
+      showRedBackgroundBeforeStop(); // Double-click detected
+    }
+  } else {
+    clickTimeout = setTimeout(() => {
+      clickTimeout = null;
+      if (timer) {
+        togglePause(); // Single-click detected
+      } else {
+        setTimer();
+      }
+    }, 300); // 300ms timeout for detecting double-click
+  }
 }
 
 function setTimer() {
@@ -71,10 +76,10 @@ function setTimer() {
         elapsedTime = 0;
         timeSpentPaused = 0; // Reset time spent paused
 
-        // Update control status bar for pause functionality
-        controlStatusBarItem.text = "$(debug-pause)";
-        controlStatusBarItem.command = "timeforge.pauseTimer";
-        stopStatusBarItem.show();
+        // Set custom background color to indicate timer is running
+        timerStatusBarItem.backgroundColor = new vscode.ThemeColor(
+          "statusBarItem.prominentBackground"
+        );
 
         // Start the timer with smooth updates
         timer = setInterval(updateTimer, UPDATE_INTERVAL);
@@ -104,13 +109,13 @@ function updateProgress(preciseElapsedTime) {
 
   if (remainingTime <= 0) {
     // Timer finished
-    timerStatusBarItem.text = `TimeForge: 00:00`;
+    timerStatusBarItem.text = `$(watch) TimeForge: 00:00`;
     timeIsUp().then(() => resetUIState());
   } else {
     // Update timer display in MM:SS format
     const minutes = Math.floor(remainingTime / 60);
     const seconds = Math.floor(remainingTime % 60);
-    timerStatusBarItem.text = `TimeForge: ${String(minutes).padStart(
+    timerStatusBarItem.text = `$(watch) TimeForge: ${String(minutes).padStart(
       2,
       "0"
     )}:${String(seconds).padStart(2, "0")}`;
@@ -133,7 +138,7 @@ function showBlinkingAnimation(preciseElapsedTime) {
     // Update timer display
     const minutes = Math.floor(remainingTime / 60);
     const seconds = Math.floor(remainingTime % 60);
-    timerStatusBarItem.text = `TimeForge: ${String(minutes).padStart(
+    timerStatusBarItem.text = `$(watch) TimeForge: ${String(minutes).padStart(
       2,
       "0"
     )}:${String(seconds).padStart(2, "0")}`;
@@ -157,6 +162,15 @@ function showBlinkingAnimation(preciseElapsedTime) {
   }, blinkInterval);
 }
 
+function showRedBackgroundBeforeStop() {
+  timerStatusBarItem.backgroundColor = new vscode.ThemeColor(
+    "statusBarItem.errorBackground"
+  );
+  setTimeout(() => {
+    stopTimer();
+  }, 1000); // 1 second delay before stopping the timer
+}
+
 function timeIsUp() {
   return vscode.window.withProgress(
     {
@@ -177,11 +191,15 @@ function togglePause() {
   if (isPaused) {
     // Calculate the time spent during pause and add it to the total time
     timeSpentPaused += (Date.now() - pauseStartTime) / 1000;
-    controlStatusBarItem.text = "$(debug-pause)";
+    timerStatusBarItem.backgroundColor = new vscode.ThemeColor(
+      "statusBarItem.prominentBackground"
+    );
   } else {
     // Save the current time when the timer is paused
     pauseStartTime = Date.now();
-    controlStatusBarItem.text = "$(debug-start)";
+    timerStatusBarItem.backgroundColor = new vscode.ThemeColor(
+      "statusBarItem.warningBackground"
+    );
   }
 
   isPaused = !isPaused;
@@ -190,7 +208,9 @@ function togglePause() {
 function stopTimer() {
   if (timer) {
     clearInterval(timer);
-    resetUIState();
+    setTimeout(() => {
+      resetUIState();
+    }, 1000); // 1 second delay before resetting UI state
   }
 }
 
@@ -199,23 +219,19 @@ function resetUIState() {
   isPaused = false;
   elapsedTime = 0;
   timeSpentPaused = 0; // Reset paused time
-  timerStatusBarItem.text = "TimeForge";
-  controlStatusBarItem.text = "$(debug-start)";
-  controlStatusBarItem.command = "timeforge.setTimer";
-  stopStatusBarItem.hide();
+  timerStatusBarItem.text = "$(watch) TimeForge";
+  timerStatusBarItem.backgroundColor = undefined;
 }
 
 function deactivate() {
   if (timer) {
     clearInterval(timer);
   }
-  disposeStatusBarItems();
+  disposeStatusBarItem();
 }
 
-function disposeStatusBarItems() {
+function disposeStatusBarItem() {
   timerStatusBarItem?.dispose();
-  controlStatusBarItem?.dispose();
-  stopStatusBarItem?.dispose();
 }
 
 module.exports = {
