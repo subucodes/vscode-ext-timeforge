@@ -1,64 +1,57 @@
 # TimeForge Extension - Developer Guide
 
-## Overview
-
-TimeForge is a Visual Studio Code extension that provides a simple timer functionality. It allows users to set a timer, pause it, and stop it with intuitive single and double-click interactions on the status bar.
-
-## Features
-
-- Set a timer with a specified duration.
-- Pause and resume the timer.
-- Stop the timer with a double-click.
-- Visual feedback with background color changes.
-- Blinking animation when the timer is about to finish.
-- Notification when the timer is up.
-
 ## Code Structure
 
 ### Main Functions
 
-1. **activate(context)**: Initializes the extension and registers commands.
-2. **initializeStatusBarItem()**: Creates and configures the status bar item.
-3. **handleClick()**: Handles single and double-click interactions on the status bar item.
-4. **setTimer()**: Prompts the user to set a timer duration and starts the timer.
-5. **updateTimer()**: Updates the timer at regular intervals.
-6. **updateProgress(preciseElapsedTime)**: Updates the status bar item with the remaining time.
-7. **showBlinkingAnimation(preciseElapsedTime)**: Displays a blinking animation when the timer is about to finish.
-8. **showRedBackgroundBeforeStop()**: Changes the background color to red before stopping the timer.
-9. **timeIsUp()**: Displays a notification when the timer is up.
-10. **togglePause()**: Pauses or resumes the timer.
-11. **stopTimer()**: Stops the timer and resets the UI state.
-12. **resetUIState()**: Resets the timer variables and UI state.
-13. **deactivate()**: Cleans up when the extension is deactivated.
-14. **disposeStatusBarItem()**: Disposes of the status bar item.
+1. **activate(context)**: Initializes the extension, database, and registers commands.
+2. **initializeDatabase(context)**: Sets up the SQLite database for storing time records.
+3. **initializeStatusBarItem()**: Creates and configures the status bar item.
+4. **handleClick()**: Handles single and double-click interactions on the status bar item.
+5. **setTimer()**: Prompts the user to set a timer duration and starts the timer.
+6. **recordStartTime()**: Logs the start time of the timer into the database.
+7. **updateTimer()**: Updates the timer at regular intervals.
+8. **updateProgress(preciseElapsedTime)**: Updates the status bar item with the remaining time.
+9. **showBlinkingAnimation(preciseElapsedTime)**: Displays a blinking animation when the timer is about to finish.
+10. **showRedBackgroundBeforeStop()**: Changes the background color to red before stopping the timer.
+11. **timeIsUp()**: Displays a notification when the timer is up.
+12. **togglePause()**: Pauses or resumes the timer.
+13. **stopTimer()**: Stops the timer and logs the elapsed time.
+14. **recordEndTime(elapsedTime)**: Logs the elapsed time into the database.
+15. **resetUIState()**: Resets the timer variables and UI state.
+16. **deactivate()**: Cleans up when the extension is deactivated.
+17. **disposeStatusBarItem()**: Disposes of the status bar item.
 
 ### Flow Diagram
 
 ```
 User Clicks Status Bar
     ├── Single Click
-    │   ├── handleClick
+    │   └── handleClick
     │       ├── No Timer
     │       │   └── setTimer
+    │       │       └── recordStartTime
     │       └── Timer Running
     │           └── togglePause
     └── Double Click
-        ├── handleClick
+        └── handleClick
             └── Timer Running
                 └── showRedBackgroundBeforeStop
                     └── stopTimer
+                        ├── recordEndTime
                         └── resetUIState
 ```
 
 ```
 setTimer
     └── updateTimer
-        └── updateProgress
-            ├── Time Up
-            │   └── timeIsUp
-            │       └── resetUIState
-            └── showBlinkingAnimation
-                └── resetUIState
+        ├── updateProgress
+        │   ├── Time Up
+        │   │   └── timeIsUp
+        │   │       └── resetUIState
+        │   └── showBlinkingAnimation
+        │       └── resetUIState
+        └── recordEndTime (on timer stop)
 ```
 
 ### Background Colors
@@ -74,6 +67,16 @@ setTimer
 - `timeforge.stopTimer`: Stops the timer.
 - `timeforge.handleClick`: Handles click interactions on the status bar item.
 
+## Database Schema
+
+The SQLite database stores time records in the following format:
+
+- **Table Name**: `time_records`
+  - `id`: INTEGER PRIMARY KEY AUTOINCREMENT
+  - `day`: TEXT (YYYY-MM-DD format)
+  - `start_time`: TEXT (HH:MM:SS format)
+  - `seconds_elapsed`: INTEGER (Total time spent in seconds)
+
 ## How to Extend
 
 To add new features or modify existing ones, follow these steps:
@@ -85,3 +88,4 @@ To add new features or modify existing ones, follow these steps:
 ## Conclusion
 
 This guide provides an overview of the TimeForge extension's code structure and functionality. Use this as a reference to understand and extend the extension's capabilities.
+

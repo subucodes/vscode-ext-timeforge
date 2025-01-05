@@ -14,10 +14,10 @@
     "type": "git",
     "url": "https://github.com/subucodes/vscode-ext-project-structure-extractor"
   },
-  "main": "./extension.js", 
+  "main": "./extension.js",
   "activationEvents": [
-    "onStartupFinished",   
-    "onCommand:timeforge.setTimer", 
+    "onStartupFinished",
+    "onCommand:timeforge.setTimer",
     "onCommand:timeforge.pauseTimer",
     "onCommand:timeforge.stopTimer"
   ],
@@ -52,5 +52,6 @@
     "vscode": "^1.1.37"
   },
   "dependencies": {
+    "sqlite3": "^5.1.7"
   }
 }

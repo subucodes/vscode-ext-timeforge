@@ -1,4 +1,7 @@
 const vscode = require("vscode");
+const sqlite3 = require("sqlite3").verbose();
+const path = require("path");
+const fs = require("fs");
 
 let timerStatusBarItem;
 let timer = null;
@@ -9,10 +12,13 @@ let isPaused = false;
 let pauseStartTime = 0;
 let timeSpentPaused = 0;
 let clickTimeout = null;
+let db;
 
 const UPDATE_INTERVAL = 100;
+const TIME_BUFFER = 3;
 
 function activate(context) {
+  initializeDatabase(context);
   initializeStatusBarItem();
   context.subscriptions.push(
     vscode.commands.registerCommand("timeforge.setTimer", setTimer),
@@ -20,6 +26,30 @@ function activate(context) {
     vscode.commands.registerCommand("timeforge.stopTimer", stopTimer),
     vscode.commands.registerCommand("timeforge.handleClick", handleClick)
   );
+}
+
+function initializeDatabase(context) {
+  const dbDir = context.globalStorageUri.fsPath;
+  const dbPath = path.join(dbDir, "timeforge.db");
+
+  if (!fs.existsSync(dbDir)) {
+    fs.mkdirSync(dbDir, { recursive: true });
+  }
+
+  db = new sqlite3.Database(dbPath, (err) => {
+    if (err) {
+      console.error("Error opening database", err);
+    } else {
+      db.run(
+        `CREATE TABLE IF NOT EXISTS time_records (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          day TEXT,
+          start_time TEXT,
+          seconds_elapsed INTEGER
+        )`
+      );
+    }
+  });
 }
 
 function initializeStatusBarItem() {
@@ -30,6 +60,11 @@ function initializeStatusBarItem() {
 }
 
 function handleClick() {
+  // Prevent double-click action in the last 3 seconds if the timer is running
+  if (timer && elapsedTime >= totalTime - TIME_BUFFER) {
+    return;
+  }
+
   if (clickTimeout) {
     clearTimeout(clickTimeout);
     clickTimeout = null;
@@ -58,18 +93,35 @@ function setTimer() {
       timeSpentPaused = 0;
       timerStatusBarItem.backgroundColor = new vscode.ThemeColor("statusBarItem.prominentBackground");
       timer = setInterval(updateTimer, UPDATE_INTERVAL);
+      recordStartTime();
     }
   });
+}
+
+function recordStartTime() {
+  const startTimeStr = new Date(startTime).toISOString().split("T")[1].split(".")[0];
+  const day = new Date().toISOString().split("T")[0];
+
+  db.run(
+    `INSERT INTO time_records (day, start_time) VALUES (?, ?)`,
+    [day, startTimeStr],
+    function (err) {
+      if (err) {
+        console.error("Error inserting start time", err);
+      }
+    }
+  );
 }
 
 function updateTimer() {
   if (!isPaused) {
     elapsedTime = (Date.now() - startTime) / 1000 - timeSpentPaused;
     updateProgress(elapsedTime);
-    if (elapsedTime >= totalTime - 3) {
+    if (elapsedTime >= totalTime - TIME_BUFFER) {
       clearInterval(timer);
       timer = null;
       showBlinkingAnimation(elapsedTime);
+      recordEndTime(elapsedTime + TIME_BUFFER); // Add buffer to elapsed time
     }
   }
 }
@@ -155,10 +207,35 @@ function togglePause() {
 function stopTimer() {
   if (timer) {
     clearInterval(timer);
+
+    // If the timer is paused and immediately stopped, the pause time should not be counted
+    if (isPaused) {
+      timeSpentPaused += (Date.now() - pauseStartTime) / 1000;
+    }
+
+    console.log(`timeSpentPaused  ${timeSpentPaused}`);
+    elapsedTime = ((Date.now() - startTime) / 1000) - timeSpentPaused; // Recalculate elapsed time
+    recordEndTime(elapsedTime); // Do not add buffer to elapsed time
     setTimeout(() => {
       resetUIState();
     }, 1000);
   }
+}
+
+function recordEndTime(elapsedTime) {
+  const secondsElapsed = Math.floor(elapsedTime); // Use the exact elapsed time
+  const day = new Date().toISOString().split("T")[0];
+  const startTimeStr = new Date(startTime).toISOString().split("T")[1].split(".")[0];
+
+  db.run(
+    `UPDATE time_records SET seconds_elapsed = ? WHERE day = ? AND start_time = ?`,
+    [secondsElapsed, day, startTimeStr],
+    function (err) {
+      if (err) {
+        console.error("Error updating end time", err);
+      }
+    }
+  );
 }
 
 function resetUIState() {
@@ -175,6 +252,13 @@ function deactivate() {
     clearInterval(timer);
   }
   disposeStatusBarItem();
+  if (db) {
+    db.close((err) => {
+      if (err) {
+        console.error("Error closing database", err);
+      }
+    });
+  }
 }
 
 function disposeStatusBarItem() {
