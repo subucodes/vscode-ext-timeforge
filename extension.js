@@ -13,6 +13,7 @@ let pauseStartTime = 0;
 let timeSpentPaused = 0;
 let clickTimeout = null;
 let db;
+let lastInsertedId;
 
 const UPDATE_INTERVAL = 100;
 const TIME_BUFFER = 3;
@@ -45,7 +46,8 @@ function initializeDatabase(context) {
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           day TEXT,
           start_time TEXT,
-          seconds_elapsed INTEGER
+          seconds_elapsed INTEGER,
+          workspace_id TEXT
         )`
       );
     }
@@ -98,16 +100,25 @@ function setTimer() {
   });
 }
 
+function getWorkspaceId() {
+  const workspaceFolders = vscode.workspace.workspaceFolders;
+  return workspaceFolders ? workspaceFolders[0].uri.fsPath : "unknown";
+}
+
 function recordStartTime() {
   const startTimeStr = new Date(startTime).toISOString().split("T")[1].split(".")[0];
   const day = new Date().toISOString().split("T")[0];
+  const workspaceId = getWorkspaceId();
 
   db.run(
-    `INSERT INTO time_records (day, start_time) VALUES (?, ?)`,
-    [day, startTimeStr],
+    `INSERT INTO time_records (day, start_time, workspace_id) VALUES (?, ?, ?)`,
+    [day, startTimeStr, workspaceId],
     function (err) {
       if (err) {
         console.error("Error inserting start time", err);
+      } else {
+        // Save the last inserted ID for later use
+        lastInsertedId = this.lastID;
       }
     }
   );
@@ -177,21 +188,30 @@ function showRedBackgroundBeforeStop() {
   }, 1000);
 }
 
-function timeIsUp() {
+async function timeIsUp() {
+  const workspaceId = getWorkspaceId();
+  const totalTimeSpent = await getTotalTimeSpent(workspaceId);
+  const formattedTime = formatTime(totalTimeSpent);
+
   return vscode.window.withProgress(
     {
       location: vscode.ProgressLocation.Notification,
-      title: "Time is up! Well done!",
+      title: `Timeforge: `,
       cancellable: false,
     },
     async (progress) => {
-      for (let i = 0; i <= 100; i++) {
-        progress.report({ increment: 1 });
-        await new Promise((resolve) => setTimeout(resolve, 30));
+      for (let i = 0; i <= 120; i++) {
+        progress.report({
+          increment: 1,
+          message: `You've invested ${formattedTime} in this workspace so far.`,
+        });
+        await new Promise((resolve) => setTimeout(resolve, 30)); // Simulate progress
       }
     }
   );
 }
+
+
 
 function togglePause() {
   if (isPaused) {
@@ -224,12 +244,15 @@ function stopTimer() {
 
 function recordEndTime(elapsedTime) {
   const secondsElapsed = Math.floor(elapsedTime); // Use the exact elapsed time
-  const day = new Date().toISOString().split("T")[0];
-  const startTimeStr = new Date(startTime).toISOString().split("T")[1].split(".")[0];
+
+  if (!lastInsertedId) {
+    console.error("No lastInsertedId available for updating the record.");
+    return;
+  }
 
   db.run(
-    `UPDATE time_records SET seconds_elapsed = ? WHERE day = ? AND start_time = ?`,
-    [secondsElapsed, day, startTimeStr],
+    `UPDATE time_records SET seconds_elapsed = ? WHERE id = ?`,
+    [secondsElapsed, lastInsertedId],
     function (err) {
       if (err) {
         console.error("Error updating end time", err);
@@ -237,6 +260,45 @@ function recordEndTime(elapsedTime) {
     }
   );
 }
+
+function getTotalTimeSpent(workspaceId) {
+  return new Promise((resolve, reject) => {
+    db.get(
+      `SELECT SUM(seconds_elapsed) AS total_time FROM time_records WHERE workspace_id = ?`,
+      [workspaceId],
+      (err, row) => {
+        if (err) {
+          console.error("Error fetching total time spent for workspace:", err);
+          return reject(err);
+        }
+        resolve(row?.total_time || 0);
+      }
+    );
+  });
+}
+
+function formatTime(seconds) {
+  if (seconds < 60) {
+    return `${seconds} seconds`;
+  } else if (seconds < 3600) {
+    const minutes = Math.floor(seconds / 60);
+    return `${minutes} minute${minutes > 1 ? "s" : ""}`;
+  } else if (seconds < 86400) {
+    const hours = Math.floor(seconds / 3600);
+    return `${hours} hour${hours > 1 ? "s" : ""}`;
+  } else if (seconds < 2592000) {
+    const days = Math.floor(seconds / 86400);
+    return `${days} day${days > 1 ? "s" : ""}`;
+  } else if (seconds < 31536000) {
+    const months = Math.floor(seconds / 2592000);
+    return `${months} month${months > 1 ? "s" : ""}`;
+  } else {
+    const years = Math.floor(seconds / 31536000);
+    return `${years} year${years > 1 ? "s" : ""}`;
+  }
+}
+
+
 
 function resetUIState() {
   timer = null;

@@ -12,7 +12,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/subucodes/vscode-ext-project-structure-extractor"
+    "url": "https://github.com/subucodes/vscode-ext-timeforge"
   },
   "main": "./extension.js",
   "activationEvents": [
