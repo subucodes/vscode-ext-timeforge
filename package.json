@@ -19,7 +19,8 @@
     "onStartupFinished",
     "onCommand:timeforge.setTimer",
     "onCommand:timeforge.pauseTimer",
-    "onCommand:timeforge.stopTimer"
+    "onCommand:timeforge.stopTimer",
+    "onCommand:timeforge.stats"
   ],
   "contributes": {
     "commands": [
@@ -34,6 +35,10 @@
       {
         "command": "timeforge.stopTimer",
         "title": "Stop Timer"
+      },
+      {
+        "command": "timeforge.stats",
+        "title": "Show Stats"
       }
     ]
   },
