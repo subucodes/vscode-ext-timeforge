@@ -473,6 +473,11 @@ function generateHTML(heatmapData, formattedTime) {
           gap: 2px;
           margin: auto;
           justify-content: center;
+          padding: 20px;
+          border-radius: 10px;
+          box-shadow: -1px 1px 6px rgba(40, 40, 40, 0.09);
+          min-width: 850px;
+          max-width: 1000px;
         }
 
         .day {
@@ -500,7 +505,7 @@ function generateHTML(heatmapData, formattedTime) {
           display: flex;
           align-items: center;
           justify-content: center;
-          gap: 8px;
+          gap: 4px;
           margin-top: 16px;
           padding-top: 8px;
         }
@@ -550,11 +555,13 @@ function generateHTML(heatmapData, formattedTime) {
         ${gridItems}
       </div>
       <div id="legend">
-        <span class="day level-0"></span> 0
-        <span class="day level-1"></span> 1-2
-        <span class="day level-2"></span> 3-4
-        <span class="day level-3"></span> 5-6
-        <span class="day level-4"></span> 7+
+        Less
+        <span class="day level-0"></span>
+        <span class="day level-1"></span>
+        <span class="day level-2"></span>
+        <span class="day level-3"></span>
+        <span class="day level-4"></span>
+        More
       </div>
       <div class="tooltip" id="tooltip"></div>
 
@@ -568,21 +575,14 @@ function generateHTML(heatmapData, formattedTime) {
             const value = event.target.getAttribute("data-value");
             const date = event.target.getAttribute("data-date");
 
-            // Get today's date in YYYY-MM-DD format
-            const today = new Date().toISOString().split("T")[0];
+            // Style and update the tooltip content
+            tooltip.style.display = "block";
+            tooltip.innerHTML = 
+              '<div class="tooltip-card">' +
+                '<div><strong>Date:</strong> ' + date + '</div>' +
+                '<div><strong>Hours:</strong> ' + value + '</div>' +
+              '</div>';
 
-            // Check if the date is valid and on or before today
-            if (date <= today) {
-              // Style and update the tooltip content
-              tooltip.style.display = "block";
-              tooltip.innerHTML = 
-                '<div class="tooltip-card">' +
-                  '<div><strong>Date:</strong> ' + date + '</div>' +
-                  '<div><strong>Hours:</strong> ' + value + '</div>' +
-                '</div>';
-            } else {
-              tooltip.style.display = "none"; // Hide the tooltip for future dates
-            }
           }
         });
 
