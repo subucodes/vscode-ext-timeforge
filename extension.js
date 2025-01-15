@@ -354,7 +354,7 @@ async function showStats(context) {
   const heatmapData = await generateHeatmapData(workspaceId);
   console.log(heatmapData);
 
-  const htmlContent = generateHTML(heatmapData, formattedTime);
+
   statsPanel = vscode.window.createWebviewPanel(
     "timeforgeStats",
     "TimeForge Stats",
@@ -362,11 +362,67 @@ async function showStats(context) {
     {
       enableScripts: true, // allow running scripts in webview
       localResourceRoots: [
-        vscode.Uri.file(path.join(context.extensionPath, "media")),
+        vscode.Uri.file(path.join(context.extensionPath, "assets")),
       ], // resource path for the extension (optional)
     }
   );
-  statsPanel.webview.html = htmlContent;
+  statsPanel.webview.html = generateHTML(heatmapData, formattedTime, statsPanel, context);;
+
+  statsPanel.webview.onDidReceiveMessage(
+    async message => {
+        switch (message.command) {
+            case 'requestData':
+                // Execute your command here
+                vscode.window.showInformationMessage('Command subbu!');
+                // Extract the date sent from the webview
+                const clickedDate = message.date;
+                console.log("Received date: " + clickedDate);
+
+                try {
+                  let dataToSend = await fetchDataForThisDate(clickedDate); // Call function to get data from SQLite
+                  statsPanel.webview.postMessage({ command: 'sendData', data: dataToSend });
+                } catch (error) {
+                    console.error("Error fetching data:", error);
+                    statsPanel.webview.postMessage({ command: 'sendData', data: "Error fetching data." });
+                }
+                return;
+        }
+    },
+    undefined,
+    context.subscriptions
+);
+}
+
+
+async function fetchDataForThisDate(inputDate) {
+
+  return new Promise((resolve, reject) => {
+    db.all(
+      `SELECT 
+          workspace_id,
+          CASE 
+              WHEN SUM(seconds_elapsed) < 60 THEN 
+                  printf('%d secs', SUM(seconds_elapsed)) 
+              WHEN SUM(seconds_elapsed) >= 60 AND SUM(seconds_elapsed) < 3600 THEN 
+                  printf('%d mins', SUM(seconds_elapsed) / 60) 
+              ELSE 
+                  printf('%d hrs', SUM(seconds_elapsed) / 3600)
+          END AS total_time
+      FROM time_records
+      WHERE day = ?
+      GROUP BY workspace_id
+      ORDER BY workspace_id;`,
+      [inputDate],
+      (err, rows) => {
+        if (err) {
+          reject(err);
+        } else {
+          console.log("Rows:", rows); // Log the result of the query
+          resolve(rows);
+        }
+      }
+    );
+  });
 }
 
 async function generateHeatmapData() {
@@ -412,7 +468,7 @@ async function generateHeatmapData() {
   });
 }
 
-function generateHTML(heatmapData, formattedTime) {
+function generateHTML(heatmapData, formattedTime, statsPanel, context) {
   // Get the current year
   const currentYear = new Date().getFullYear();
 
@@ -472,6 +528,10 @@ function generateHTML(heatmapData, formattedTime) {
     })
     .join(""); // Join the items into a single string
 
+// Get paths to the CSS and JS files
+const cssUri = statsPanel.webview.asWebviewUri(vscode.Uri.file(path.join(context.extensionPath, 'assets', 'tabulator.min.css')));
+const jsUri = statsPanel.webview.asWebviewUri(vscode.Uri.file(path.join(context.extensionPath, 'assets', 'tabulator.min.js')));
+
   // Return the complete HTML structure
   return `
     <!DOCTYPE html>
@@ -480,6 +540,9 @@ function generateHTML(heatmapData, formattedTime) {
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <title>Timeforge 📈</title>
+       <link rel="stylesheet" href="${cssUri}"> <!-- Link to Tabulator CSS -->
+
+        
       <style>
         body {
           font-family: sans-serif;
@@ -568,17 +631,20 @@ function generateHTML(heatmapData, formattedTime) {
         }
 
 
-        @media (max-width: 600px) {
+        @media (max-width: 1050px) {
           #heatmap {
-            grid-template-columns: repeat(53, 10px);
-            gap: 1px;
+            display: none;
           }
-
-          .day {
-            width: 8px;
-            height: 8px;
-          }
+            #legend{
+            display:none;
+            
+            }
         }
+
+        #example-table {
+            margin: 20px;
+        }
+
       </style>
     </head>
     <body>
@@ -598,6 +664,12 @@ function generateHTML(heatmapData, formattedTime) {
       </div>
       <div class="tooltip" id="tooltip"></div>
 
+      <h2>Workspace Time Data</h2>
+      <div id="example-table"></div>
+
+
+      <script src="${jsUri}"></script> <!-- Link to Tabulator JS -->
+        
       <script>
         const heatmap = document.getElementById("heatmap");
         const tooltip = document.getElementById("tooltip");
@@ -627,6 +699,35 @@ function generateHTML(heatmapData, formattedTime) {
         heatmap.addEventListener("mouseout", () => {
           tooltip.style.display = "none";
         });
+        const vscode = acquireVsCodeApi();
+
+        const daysInYear = document.querySelectorAll("#heatmap .day");
+        daysInYear.forEach((node) => {
+          node.addEventListener('click', () => {
+            console.log("Element clicked!" + node.dataset.date);
+            let result = vscode.postMessage({ command: 'requestData', date: node.dataset.date });
+            console.log(result)
+          });
+        });
+
+
+        window.addEventListener('message', event => {
+          const message = event.data; // The JSON data sent from the extension
+          if (message.command === 'sendData') {
+              console.log("here is the message from the panel" + JSON.stringify(message.data, null, 2) );
+
+              const table = new Tabulator("#example-table", {
+              data: message.data, // Load data into the table
+              layout: "fitColumns", // Auto-resize columns to fit content
+              columns: [
+                  { title: "Workspace ID", field: "workspace_id", sorter: "number" },
+                  { title: "Total Time", field: "total_time" }
+                  ]
+              });
+
+          }
+      });
+
 
       </script>
     </body>
