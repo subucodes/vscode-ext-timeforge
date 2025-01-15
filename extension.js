@@ -444,6 +444,28 @@ function generateHTML(heatmapData, formattedTime) {
       currentDate.setDate(currentDate.getDate() + index);
       const formattedDate = currentDate.toISOString().slice(0, 10); // Date in YYYY-MM-DD format
 
+      // Inject filler divs to set the day inicator and the week offset if the date starts not from sunday (first of week)
+      if(index === 0){
+
+        const daysOfWeek = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+        let dayIndicators = "";
+        for (const day of daysOfWeek) {
+          dayIndicators += `<div style="padding-right: 10px; font-size: 12px;">${day}</div>`
+        }
+
+        const dayInNumber = currentDate.getDay()
+        let fillerDivs = "";
+        if(dayInNumber > 0){
+          for (let i = 0; i < dayInNumber; i++) {
+            fillerDivs += `<div style="opacity: 0; pointer-events: none;"></div>`;
+          }
+        }
+        return `
+          ${dayIndicators}
+          ${fillerDivs}
+          <div class="day level-${level}" data-value="${value}" data-date="${formattedDate}"></div>
+        `;
+      }
       return `
       <div class="day level-${level}" data-value="${value}" data-date="${formattedDate}"></div>
     `;
@@ -460,22 +482,34 @@ function generateHTML(heatmapData, formattedTime) {
       <title>Timeforge 📈</title>
       <style>
         body {
-          font-family: 'Arial', sans-serif;
+          font-family: sans-serif;
           margin: 0;
           padding: 20px;
           background-color: #f9f9f9;
           color: #333;
         }
 
+        #heatmap::before {
+            content: "Jan            Feb            Mar            Apr            May            Jun            Jul            Aug            Sep            Oct            Nov            Dec";
+            position: absolute;
+            top: 10px;
+            left: 145px;
+            white-space: pre;
+        }
+
         #heatmap {
+          position: relative;
           display: grid;
-          grid-template-columns: repeat(53, 14px);  /* 53 weeks */
+          grid-template-rows: repeat(7, 14px); /* 7 rows (one row per day of the week) */
+          grid-auto-flow: column;
           gap: 2px;
           margin: auto;
           justify-content: center;
-          padding: 20px;
+          padding-top: 40px;
+          padding-bottom: 40px;
           border-radius: 10px;
-          box-shadow: -1px 1px 6px rgba(40, 40, 40, 0.09);
+          /*box-shadow: -1px 1px 6px rgba(40, 40, 40, 0.09);*/
+          box-shadow:  0px 0px 20px 5px rgba(40, 40, 40, 0.09);
           min-width: 850px;
           max-width: 1000px;
         }
@@ -506,8 +540,7 @@ function generateHTML(heatmapData, formattedTime) {
           align-items: center;
           justify-content: center;
           gap: 4px;
-          margin-top: 16px;
-          padding-top: 8px;
+          transform: translateY(-30px);
         }
 
         #legend .day {
@@ -555,13 +588,13 @@ function generateHTML(heatmapData, formattedTime) {
         ${gridItems}
       </div>
       <div id="legend">
-        Less
+        less 
         <span class="day level-0"></span>
         <span class="day level-1"></span>
         <span class="day level-2"></span>
         <span class="day level-3"></span>
         <span class="day level-4"></span>
-        More
+        more
       </div>
       <div class="tooltip" id="tooltip"></div>
 
@@ -586,7 +619,6 @@ function generateHTML(heatmapData, formattedTime) {
           }
         });
 
-
         heatmap.addEventListener("mousemove", (event) => {
           tooltip.style.top = (event.pageY + 10) + "px";
           tooltip.style.left = (event.pageX + 10) + "px";
@@ -595,6 +627,7 @@ function generateHTML(heatmapData, formattedTime) {
         heatmap.addEventListener("mouseout", () => {
           tooltip.style.display = "none";
         });
+
       </script>
     </body>
     </html>
