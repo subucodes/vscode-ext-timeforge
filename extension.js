@@ -373,7 +373,6 @@ async function showStats(context) {
         switch (message.command) {
             case 'requestData':
                 // Execute your command here
-                vscode.window.showInformationMessage('Command subbu!');
                 // Extract the date sent from the webview
                 const clickedDate = message.date;
                 console.log("Received date: " + clickedDate);
@@ -532,6 +531,8 @@ function generateHTML(heatmapData, formattedTime, statsPanel, context) {
 const cssUri = statsPanel.webview.asWebviewUri(vscode.Uri.file(path.join(context.extensionPath, 'assets', 'tabulator.min.css')));
 const jsUri = statsPanel.webview.asWebviewUri(vscode.Uri.file(path.join(context.extensionPath, 'assets', 'tabulator.min.js')));
 
+const chartjsJsUri = statsPanel.webview.asWebviewUri(vscode.Uri.file(path.join(context.extensionPath, 'assets', 'chart.umd.min.js')));
+
   // Return the complete HTML structure
   return `
     <!DOCTYPE html>
@@ -540,8 +541,7 @@ const jsUri = statsPanel.webview.asWebviewUri(vscode.Uri.file(path.join(context.
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <title>Timeforge 📈</title>
-       <link rel="stylesheet" href="${cssUri}"> <!-- Link to Tabulator CSS -->
-
+       <link rel="stylesheet" href="${cssUri}"> <!-- Link to Tabulator CSS --> 
         
       <style>
         body {
@@ -630,21 +630,36 @@ const jsUri = statsPanel.webview.asWebviewUri(vscode.Uri.file(path.join(context.
           pointer-events: none; /* Prevent tooltip interference */
         }
 
+        #table-chart-container{
+          display: flex;
+          flex-direction: row;
+          flex-wrap: nowrap;
+          align-content: center;
+          justify-content: center;
+          align-items: flex-start;
+          gap: 50px;
+        }
+          
 
         @media (max-width: 1050px) {
           #heatmap {
             display: none;
           }
-            #legend{
-            display:none;
-            
-            }
+          #legend{
+          display:none;
+          
+          }
+
+          #table-chart-container{
+            flex-direction: column;
+          }
+
         }
 
-        #example-table {
-            margin: 20px;
-        }
 
+        
+
+       
       </style>
     </head>
     <body>
@@ -665,10 +680,17 @@ const jsUri = statsPanel.webview.asWebviewUri(vscode.Uri.file(path.join(context.
       <div class="tooltip" id="tooltip"></div>
 
       <h2>Workspace Time Data</h2>
-      <div id="example-table"></div>
+
+      <div id="table-chart-container">
+      <div style="width: 400px; height: 400px;">
+          <canvas id="myPieChart"></canvas>
+      </div>
+        <div id="example-table"></div>
+      </div>
 
 
       <script src="${jsUri}"></script> <!-- Link to Tabulator JS -->
+      <script src="${chartjsJsUri}"></script> <!-- Link to Chart JS -->
         
       <script>
         const heatmap = document.getElementById("heatmap");
@@ -710,26 +732,91 @@ const jsUri = statsPanel.webview.asWebviewUri(vscode.Uri.file(path.join(context.
           });
         });
 
-
+        let myPieChart;
+        
         window.addEventListener('message', event => {
           const message = event.data; // The JSON data sent from the extension
           if (message.command === 'sendData') {
               console.log("here is the message from the panel" + JSON.stringify(message.data, null, 2) );
 
-              const table = new Tabulator("#example-table", {
+              let table = new Tabulator("#example-table", {
               data: message.data, // Load data into the table
+              height:"400px",
               layout: "fitColumns", // Auto-resize columns to fit content
-              columns: [
-                  { title: "Workspace ID", field: "workspace_id", sorter: "number" },
-                  { title: "Total Time", field: "total_time" }
-                  ]
+              addRowPos:"top",          //when adding a new row, add it to the top of the table
+              pagination:"local",       //paginate the data
+              paginationSize:10,         //allow 10 rows per page of data
+              paginationCounter:"rows", //display count of paginated rows in footer
+              movableColumns:true,      //allow column order to be changed
+              initialSort:[             //set the initial sort order of the data
+                  {column:"workspace_id", dir:"asc"},
+              ],
+              columns:[
+              {title:"Workspace", field:"workspace_id", width:400},
+              {title:"Time spent", field:"total_time", width:150},
+              ],
               });
+
+
+              
+              const ctx = document.getElementById('myPieChart').getContext('2d');
+              // Destroy the existing chart if it exists
+              if (myPieChart) {
+                  myPieChart.destroy();
+              }
+              myPieChart = new Chart(ctx, {
+                  type: 'pie',
+                  data: {
+                      labels: ['Red', 'Blue', 'Yellow', 'Green', 'Purple'],
+                      datasets: [{
+                          label: 'Votes',
+                          data: [12, 19, 3, 5, 2],
+                          backgroundColor: [
+                              'rgba(255, 99, 132, 0.2)',
+                              'rgba(54, 162, 235, 0.2)',
+                              'rgba(255, 206, 86, 0.2)',
+                              'rgba(75, 192, 192, 0.2)',
+                              'rgba(153, 102, 255, 0.2)'
+                          ],
+                          borderColor: [
+                              'rgba(255, 99, 132, 1)',
+                              'rgba(54, 162, 235, 1)',
+                              'rgba(255, 206, 86, 1)',
+                              'rgba(75, 192, 192, 1)',
+                              'rgba(153, 102, 255, 1)'
+                          ],
+                          borderWidth: 1
+                      }]
+                  },
+                  options: {
+                      responsive: true,
+                      plugins: {
+                          legend: {
+                              position: 'top',
+                          },
+                          tooltip: {
+                              callbacks: {
+                                  label: function(tooltipItem) {
+                                      return tooltipItem.label + ': ' + tooltipItem.raw;
+                                  }
+                              }
+                          }
+                      }
+                  }
+              });
+              
+
+
 
           }
       });
 
 
       </script>
+
+    
+        
+
     </body>
     </html>
   `;
