@@ -530,8 +530,8 @@ function generateHTML(heatmapData, formattedTime, statsPanel, context) {
 // Get paths to the CSS and JS files
 const cssUri = statsPanel.webview.asWebviewUri(vscode.Uri.file(path.join(context.extensionPath, 'assets', 'tabulator.min.css')));
 const jsUri = statsPanel.webview.asWebviewUri(vscode.Uri.file(path.join(context.extensionPath, 'assets', 'tabulator.min.js')));
-
 const chartjsJsUri = statsPanel.webview.asWebviewUri(vscode.Uri.file(path.join(context.extensionPath, 'assets', 'chart.umd.min.js')));
+const assistantFont = statsPanel.webview.asWebviewUri(vscode.Uri.file(path.join(context.extensionPath, 'assets', 'Assistant-Regular.ttf')));
 
   // Return the complete HTML structure
   return `
@@ -544,12 +544,24 @@ const chartjsJsUri = statsPanel.webview.asWebviewUri(vscode.Uri.file(path.join(c
        <link rel="stylesheet" href="${cssUri}"> <!-- Link to Tabulator CSS --> 
         
       <style>
+      @font-face {
+                font-family: 'Assistant';
+                src: url('${assistantFont}') format('truetype'); /* Use the generated URI */
+                font-weight: normal;
+                font-style: normal;
+            }
+
         body {
-          font-family: sans-serif;
+          font-family: 'Assistant',sans-serif;
           margin: 0;
           padding: 20px;
           background-color: #f9f9f9;
           color: #333;
+        }
+
+        .flex-center{
+          display:flex;
+          justify-content: center;
         }
 
         #heatmap::before {
@@ -636,10 +648,60 @@ const chartjsJsUri = statsPanel.webview.asWebviewUri(vscode.Uri.file(path.join(c
           flex-wrap: nowrap;
           align-content: center;
           justify-content: center;
-          align-items: flex-start;
+          align-items: center;
           gap: 50px;
         }
-          
+
+        .tabulator{
+        background-color: #fff;
+        border: 1px solid #fff;
+        box-shadow:  0px 0px 20px 5px rgba(40, 40, 40, 0.09);
+        box-sizing : border-box;
+        border-radius : 10px;
+        }
+
+        .tabulator-row.tabulator-row-even {
+       background-color:#fff; 
+      }
+          .tabulator .tabulator-header .tabulator-col {
+        background-color:#fff; 
+        border-right:1px solid #fff
+          }
+
+
+
+          .tabulator-row .tabulator-cell {
+          border-right:1px solid #fff;
+          padding-left : 10px;
+          padding-top : 4px;
+          padding-bottom : 4px;
+          }
+
+          .tabulator .tabulator-header {
+          border-bottom : 1px solid #00000008;
+          }
+
+          .tabulator .tabulator-header .tabulator-col .tabulator-col-content {
+          padding-top: 5px;
+          padding-left: 10px;
+          }
+
+          .tabulator .tabulator-footer {
+          background-color: #ffffff;
+          border-top: 1px solid #9999996b;
+          }
+
+          .tabulator .tabulator-footer .tabulator-page {
+          border: 1px solid #ffffff;
+          color: #333;
+          }
+
+          .tabulator .tabulator-footer .tabulator-page.active{
+          border: 2px solid #7bc96f4d;
+          color: #333;
+          font-weight: bold;
+          }
+
 
         @media (max-width: 1050px) {
           #heatmap {
@@ -663,8 +725,8 @@ const chartjsJsUri = statsPanel.webview.asWebviewUri(vscode.Uri.file(path.join(c
       </style>
     </head>
     <body>
-      <h3>Workspace Statistics 🚀</h3>
-      <h4>You have invested 🪴${formattedTime} so far !</h4>
+      <h3 class="flex-center">Workspace Statistics 🚀</h3>
+      <h4 class="flex-center">You have invested 🪴${formattedTime} so far !</h4>
       <div id="heatmap">
         ${gridItems}
       </div>
@@ -679,13 +741,13 @@ const chartjsJsUri = statsPanel.webview.asWebviewUri(vscode.Uri.file(path.join(c
       </div>
       <div class="tooltip" id="tooltip"></div>
 
-      <h2>Workspace Time Data</h2>
+      <h3 class="flex-center">Time spent across the Workspaces</h3>
 
       <div id="table-chart-container">
       <div style="width: 400px; height: 400px;">
           <canvas id="myPieChart"></canvas>
       </div>
-        <div id="example-table"></div>
+        <div id="workspace-timspent-table"></div>
       </div>
 
 
@@ -739,7 +801,7 @@ const chartjsJsUri = statsPanel.webview.asWebviewUri(vscode.Uri.file(path.join(c
           if (message.command === 'sendData') {
               console.log("here is the message from the panel" + JSON.stringify(message.data, null, 2) );
 
-              let table = new Tabulator("#example-table", {
+              let table = new Tabulator("#workspace-timspent-table", {
               data: message.data, // Load data into the table
               height:"400px",
               layout: "fitColumns", // Auto-resize columns to fit content
@@ -755,6 +817,13 @@ const chartjsJsUri = statsPanel.webview.asWebviewUri(vscode.Uri.file(path.join(c
               {title:"Workspace", field:"workspace_id", width:400},
               {title:"Time spent", field:"total_time", width:150},
               ],
+              });
+
+              table.on("tableBuilt", function(){
+              document.querySelector('.tabulator-page[aria-label="First Page"]').textContent = '<';
+              document.querySelector('.tabulator-page[aria-label="Next Page"]').textContent = '>';
+              document.querySelector('.tabulator-page[aria-label="Prev Page"]').textContent = '<<';
+              document.querySelector('.tabulator-page[aria-label="Last Page"]').textContent = '>>';
               });
 
 
@@ -804,9 +873,6 @@ const chartjsJsUri = statsPanel.webview.asWebviewUri(vscode.Uri.file(path.join(c
                       }
                   }
               });
-              
-
-
 
           }
       });
