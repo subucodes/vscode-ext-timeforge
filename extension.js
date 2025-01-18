@@ -378,6 +378,9 @@ async function showStats(context) {
   const yearBoundary = await getYearsBoundary();
   console.log(yearBoundary);
 
+  const todayDate = new Date().toISOString().split('T')[0];
+  const todaysWorkspaceData = await fetchDataForThisDate(todayDate);
+
   statsPanel = vscode.window.createWebviewPanel(
     "timeforgeStats",
     "TimeForge Stats",
@@ -392,6 +395,7 @@ async function showStats(context) {
   statsPanel.webview.html = generateHTML(
     yearBoundary,
     heatmapData,
+    todaysWorkspaceData,
     formattedTime,
     statsPanel,
     context
@@ -503,6 +507,7 @@ async function generateHeatmapData() {
 function generateHTML(
   yearBoundary,
   heatmapData,
+  todaysWorkspaceData,
   formattedTime,
   statsPanel,
   context
@@ -967,40 +972,48 @@ function generateHTML(
             }
           }
         });
-        
 
+
+        
+        function paintTableWithData(tableData){
+            let table = new Tabulator("#workspace-timspent-table", {
+            data: tableData, // Load data into the table
+            height:"400px",
+            layout: "fitColumns", // Auto-resize columns to fit content
+            addRowPos:"top",          //when adding a new row, add it to the top of the table
+            pagination:"local",       //paginate the data
+            paginationSize:1,         //allow 10 rows per page of data
+            paginationCounter:"rows", //display count of paginated rows in footer
+            movableColumns:true,      //allow column order to be changed
+            initialSort:[             //set the initial sort order of the data
+                {column:"workspace_id", dir:"asc"},
+            ],
+            columns:[
+              {title:"Workspace", field:"workspace_id", width:400},
+              {title:"Time spent", field:"total_time", width:150},
+            ],
+            });
+
+            table.on("tableBuilt", function(){
+              document.querySelector('.tabulator-page[aria-label="First Page"]').textContent = '<';
+              document.querySelector('.tabulator-page[aria-label="Next Page"]').textContent = '>';
+              document.querySelector('.tabulator-page[aria-label="Prev Page"]').textContent = '<<';
+              document.querySelector('.tabulator-page[aria-label="Last Page"]').textContent = '>>';
+            });
+        }
+
+        // load current date by default
+        const daySpentOnHeading = document.querySelector(".time-spent-on");
+        const todayDate = new Date().toISOString().split('T')[0];
+        daySpentOnHeading.textContent = "Time spent on : " + todayDate;
+        paintTableWithData(${todaysWorkspaceData})
 
        
         window.addEventListener('message', event => {
             const message = event.data; // The JSON data sent from the extension
             if (message.command === 'sendData') {
                 console.log("here is the message from the panel" + JSON.stringify(message.data, null, 2) );
-
-                let table = new Tabulator("#workspace-timspent-table", {
-                data: message.data, // Load data into the table
-                height:"400px",
-                layout: "fitColumns", // Auto-resize columns to fit content
-                addRowPos:"top",          //when adding a new row, add it to the top of the table
-                pagination:"local",       //paginate the data
-                paginationSize:1,         //allow 10 rows per page of data
-                paginationCounter:"rows", //display count of paginated rows in footer
-                movableColumns:true,      //allow column order to be changed
-                initialSort:[             //set the initial sort order of the data
-                    {column:"workspace_id", dir:"asc"},
-                ],
-                columns:[
-                {title:"Workspace", field:"workspace_id", width:400},
-                {title:"Time spent", field:"total_time", width:150},
-                ],
-                });
-
-                table.on("tableBuilt", function(){
-                document.querySelector('.tabulator-page[aria-label="First Page"]').textContent = '<';
-                document.querySelector('.tabulator-page[aria-label="Next Page"]').textContent = '>';
-                document.querySelector('.tabulator-page[aria-label="Prev Page"]').textContent = '<<';
-                document.querySelector('.tabulator-page[aria-label="Last Page"]').textContent = '>>';
-                });
-
+                paintTableWithData(message.data);         
             }
         });
 
