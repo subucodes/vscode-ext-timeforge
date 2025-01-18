@@ -14,7 +14,7 @@ let timeSpentPaused = 0;
 let clickTimeout = null;
 let db;
 let lastInsertedId;
-let statsPanel = null;  // Global variable to store the webview panel
+let statsPanel = null; // Global variable to store the webview panel
 
 const UPDATE_INTERVAL = 100;
 const TIME_BUFFER = 3;
@@ -298,6 +298,27 @@ function getTotalTimeSpent(workspaceId) {
   });
 }
 
+function getYearsBoundary() {
+  return new Promise((resolve, reject) => {
+    db.get(
+      `SELECT MIN(strftime('%Y', day)) AS min_year, MAX(strftime('%Y', day)) AS max_year FROM time_records`,
+      (err, row) => {
+        if (err) {
+          console.error(
+            "Error fetching the year boundary from time_records:",
+            err
+          );
+          return reject(err);
+        }
+        resolve({
+          min_year: row?.min_year || null,
+          max_year: row?.max_year || null,
+        });
+      }
+    );
+  });
+}
+
 function formatTime(seconds) {
   if (seconds < 60) {
     return `${seconds} seconds`;
@@ -343,7 +364,7 @@ function disposeStatusBarItem() {
 async function showStats(context) {
   // Check if the panel already exists and is open
   if (statsPanel) {
-    statsPanel.dispose();  // Close the existing panel
+    statsPanel.dispose(); // Close the existing panel
   }
 
   const workspaceId = getWorkspaceId();
@@ -354,6 +375,8 @@ async function showStats(context) {
   const heatmapData = await generateHeatmapData(workspaceId);
   console.log(heatmapData);
 
+  const yearBoundary = await getYearsBoundary();
+  console.log(yearBoundary);
 
   statsPanel = vscode.window.createWebviewPanel(
     "timeforgeStats",
@@ -366,35 +389,45 @@ async function showStats(context) {
       ], // resource path for the extension (optional)
     }
   );
-  statsPanel.webview.html = generateHTML(heatmapData, formattedTime, statsPanel, context);;
+  statsPanel.webview.html = generateHTML(
+    yearBoundary,
+    heatmapData,
+    formattedTime,
+    statsPanel,
+    context
+  );
 
   statsPanel.webview.onDidReceiveMessage(
-    async message => {
-        switch (message.command) {
-            case 'requestData':
-                // Execute your command here
-                // Extract the date sent from the webview
-                const clickedDate = message.date;
-                console.log("Received date: " + clickedDate);
+    async (message) => {
+      switch (message.command) {
+        case "requestData":
+          // Execute your command here
+          // Extract the date sent from the webview
+          const clickedDate = message.date;
+          console.log("Received date: " + clickedDate);
 
-                try {
-                  let dataToSend = await fetchDataForThisDate(clickedDate); // Call function to get data from SQLite
-                  statsPanel.webview.postMessage({ command: 'sendData', data: dataToSend });
-                } catch (error) {
-                    console.error("Error fetching data:", error);
-                    statsPanel.webview.postMessage({ command: 'sendData', data: "Error fetching data." });
-                }
-                return;
-        }
+          try {
+            let dataToSend = await fetchDataForThisDate(clickedDate); // Call function to get data from SQLite
+            statsPanel.webview.postMessage({
+              command: "sendData",
+              data: dataToSend,
+            });
+          } catch (error) {
+            console.error("Error fetching data:", error);
+            statsPanel.webview.postMessage({
+              command: "sendData",
+              data: "Error fetching data.",
+            });
+          }
+          return;
+      }
     },
     undefined,
     context.subscriptions
-);
+  );
 }
 
-
 async function fetchDataForThisDate(inputDate) {
-
   return new Promise((resolve, reject) => {
     db.all(
       `SELECT 
@@ -467,7 +500,13 @@ async function generateHeatmapData() {
   });
 }
 
-function generateHTML(heatmapData, formattedTime, statsPanel, context) {
+function generateHTML(
+  yearBoundary,
+  heatmapData,
+  formattedTime,
+  statsPanel,
+  context
+) {
   // Get the current year
   const currentYear = new Date().getFullYear();
 
@@ -500,17 +539,16 @@ function generateHTML(heatmapData, formattedTime, statsPanel, context) {
       const formattedDate = currentDate.toISOString().slice(0, 10); // Date in YYYY-MM-DD format
 
       // Inject filler divs to set the day inicator and the week offset if the date starts not from sunday (first of week)
-      if(index === 0){
-
+      if (index === 0) {
         const daysOfWeek = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
         let dayIndicators = "";
         for (const day of daysOfWeek) {
-          dayIndicators += `<div style="padding-right: 10px; font-size: 12px;">${day}</div>`
+          dayIndicators += `<div style="padding-right: 10px; font-size: 12px;">${day}</div>`;
         }
 
-        const dayInNumber = currentDate.getDay()
+        const dayInNumber = currentDate.getDay();
         let fillerDivs = "";
-        if(dayInNumber > 0){
+        if (dayInNumber > 0) {
           for (let i = 0; i < dayInNumber; i++) {
             fillerDivs += `<div style="opacity: 0; pointer-events: none;"></div>`;
           }
@@ -527,11 +565,27 @@ function generateHTML(heatmapData, formattedTime, statsPanel, context) {
     })
     .join(""); // Join the items into a single string
 
-// Get paths to the CSS and JS files
-const cssUri = statsPanel.webview.asWebviewUri(vscode.Uri.file(path.join(context.extensionPath, 'assets', 'tabulator.min.css')));
-const jsUri = statsPanel.webview.asWebviewUri(vscode.Uri.file(path.join(context.extensionPath, 'assets', 'tabulator.min.js')));
-const chartjsJsUri = statsPanel.webview.asWebviewUri(vscode.Uri.file(path.join(context.extensionPath, 'assets', 'chart.umd.min.js')));
-const assistantFont = statsPanel.webview.asWebviewUri(vscode.Uri.file(path.join(context.extensionPath, 'assets', 'Assistant-Regular.ttf')));
+  // Get paths to the CSS and JS files
+  const cssUri = statsPanel.webview.asWebviewUri(
+    vscode.Uri.file(
+      path.join(context.extensionPath, "assets", "tabulator.min.css")
+    )
+  );
+  const jsUri = statsPanel.webview.asWebviewUri(
+    vscode.Uri.file(
+      path.join(context.extensionPath, "assets", "tabulator.min.js")
+    )
+  );
+  const chartjsJsUri = statsPanel.webview.asWebviewUri(
+    vscode.Uri.file(
+      path.join(context.extensionPath, "assets", "chart.umd.min.js")
+    )
+  );
+  const assistantFont = statsPanel.webview.asWebviewUri(
+    vscode.Uri.file(
+      path.join(context.extensionPath, "assets", "Assistant-Regular.ttf")
+    )
+  );
 
   // Return the complete HTML structure
   return `
@@ -563,6 +617,30 @@ const assistantFont = statsPanel.webview.asWebviewUri(vscode.Uri.file(path.join(
           display:flex;
           justify-content: center;
         }
+
+        #years-container{
+          display: flex;
+          flex-direction: row;
+          justify-content: center;
+          gap: 10px;
+          align-items: center;
+        }
+
+        #years-container button {
+          cursor: pointer;
+          border: none;
+          background-color: transparent; /* Transparent color */
+          padding: 3px 6px;
+          transition: background-color 0.1s ease-in-out; /* Animate only border color */
+          box-sizing: border-box; /* Ensures padding and border do not affect size */
+          border-radius: 4px;
+          font-weight: 400;
+        }
+
+        #years-container button:hover {
+          background-color: #80808029;
+        }
+
 
         #months{
           display: flex;
@@ -710,6 +788,9 @@ const assistantFont = statsPanel.webview.asWebviewUri(vscode.Uri.file(path.join(
           #months {
             display: none;
           }
+          #years-container{
+          display: none;
+          }
           #heatmap {
             display: none;
           }
@@ -733,6 +814,13 @@ const assistantFont = statsPanel.webview.asWebviewUri(vscode.Uri.file(path.join(
     <body>
       <h3 class="flex-center">Workspace Statistics 🚀</h3>
       <h4 class="flex-center">You have invested 🪴${formattedTime} so far !</h4>
+      
+      <div id="years-container">
+        <button id="reduce-year">&lt;</button>
+        <h4 id="active-year">${currentYear}</h4>
+        <button id="increase-year">&gt;</button>
+      </div>
+
       <div id="months">
         <span>Jan</span>
         <span>Feb</span>
@@ -761,12 +849,9 @@ const assistantFont = statsPanel.webview.asWebviewUri(vscode.Uri.file(path.join(
       </div>
       <div class="tooltip" id="tooltip"></div>
 
-      <h3 class="flex-center">Time spent across the Workspaces</h3>
+      <h3 class="flex-center time-spent-on"></h3>
 
       <div id="table-chart-container">
-      <div style="width: 400px; height: 400px;">
-          <canvas id="myPieChart"></canvas>
-      </div>
         <div id="workspace-timspent-table"></div>
       </div>
 
@@ -809,100 +894,121 @@ const assistantFont = statsPanel.webview.asWebviewUri(vscode.Uri.file(path.join(
         daysInYear.forEach((node) => {
           node.addEventListener('click', () => {
             console.log("Element clicked!" + node.dataset.date);
+            
+            const daySpentOnHeading = document.querySelector(".time-spent-on");
+            daySpentOnHeading.textContent = "Time spent on : " + node.dataset.date;
             let result = vscode.postMessage({ command: 'requestData', date: node.dataset.date });
             console.log(result)
           });
         });
 
-        let myPieChart;
+
+        // getting the interpolation and JSON.stringify is needed
+        const yearBoundary = ${JSON.stringify(yearBoundary)}
+        console.log("yearBoundary" + yearBoundary.min_year, yearBoundary.max_year );
+        const currentYear = ${currentYear}
+
         
-        window.addEventListener('message', event => {
-          const message = event.data; // The JSON data sent from the extension
-          if (message.command === 'sendData') {
-              console.log("here is the message from the panel" + JSON.stringify(message.data, null, 2) );
+        const reduceYearBtn = document.getElementById("reduce-year");
+        const increaseYearBtn = document.getElementById("increase-year");
 
-              let table = new Tabulator("#workspace-timspent-table", {
-              data: message.data, // Load data into the table
-              height:"400px",
-              layout: "fitColumns", // Auto-resize columns to fit content
-              addRowPos:"top",          //when adding a new row, add it to the top of the table
-              pagination:"local",       //paginate the data
-              paginationSize:10,         //allow 10 rows per page of data
-              paginationCounter:"rows", //display count of paginated rows in footer
-              movableColumns:true,      //allow column order to be changed
-              initialSort:[             //set the initial sort order of the data
-                  {column:"workspace_id", dir:"asc"},
-              ],
-              columns:[
-              {title:"Workspace", field:"workspace_id", width:400},
-              {title:"Time spent", field:"total_time", width:150},
-              ],
-              });
-
-              table.on("tableBuilt", function(){
-              document.querySelector('.tabulator-page[aria-label="First Page"]').textContent = '<';
-              document.querySelector('.tabulator-page[aria-label="Next Page"]').textContent = '>';
-              document.querySelector('.tabulator-page[aria-label="Prev Page"]').textContent = '<<';
-              document.querySelector('.tabulator-page[aria-label="Last Page"]').textContent = '>>';
-              });
-
-
-              
-              const ctx = document.getElementById('myPieChart').getContext('2d');
-              // Destroy the existing chart if it exists
-              if (myPieChart) {
-                  myPieChart.destroy();
-              }
-              myPieChart = new Chart(ctx, {
-                  type: 'pie',
-                  data: {
-                      labels: ['Red', 'Blue', 'Yellow', 'Green', 'Purple'],
-                      datasets: [{
-                          label: 'Votes',
-                          data: [12, 19, 3, 5, 2],
-                          backgroundColor: [
-                              'rgba(255, 99, 132, 0.2)',
-                              'rgba(54, 162, 235, 0.2)',
-                              'rgba(255, 206, 86, 0.2)',
-                              'rgba(75, 192, 192, 0.2)',
-                              'rgba(153, 102, 255, 0.2)'
-                          ],
-                          borderColor: [
-                              'rgba(255, 99, 132, 1)',
-                              'rgba(54, 162, 235, 1)',
-                              'rgba(255, 206, 86, 1)',
-                              'rgba(75, 192, 192, 1)',
-                              'rgba(153, 102, 255, 1)'
-                          ],
-                          borderWidth: 1
-                      }]
-                  },
-                  options: {
-                      responsive: true,
-                      plugins: {
-                          legend: {
-                              position: 'top',
-                          },
-                          tooltip: {
-                              callbacks: {
-                                  label: function(tooltipItem) {
-                                      return tooltipItem.label + ': ' + tooltipItem.raw;
-                                  }
-                              }
-                          }
-                      }
-                  }
-              });
-
+        // disable the increase and decrease year buttons based on the year boundary when page is loaded
+        if(Number(currentYear) <= Number(yearBoundary.min_year)){
+              reduceYearBtn.disabled = true;
           }
-      });
+        if(Number(currentYear) >= Number(yearBoundary.max_year)){
+            increaseYearBtn.disabled = true;
+        }
+
+
+        // event listeners for the years buttons
+        reduceYearBtn.addEventListener("click", (event) => {
+          const activeYear = document.getElementById("active-year");
+          if(Number(activeYear.textContent) <= Number(yearBoundary.min_year)){
+              event.target.disabled = true;
+          }else{
+            activeYear.textContent = Number(activeYear.textContent) - 1;
+            console.log("activeYear.textContent after decrementing" + activeYear.textContent)
+            // for minus 
+            if(Number(activeYear.textContent) <= Number(yearBoundary.min_year)){
+              event.target.disabled = true;
+            }else{
+              event.target.disabled = false;
+            }
+            // for plus
+            if(Number(activeYear.textContent) >= Number(yearBoundary.max_year)){
+              increaseYearBtn.disabled = true;
+            }else{
+              console.log(event.target.nextElementSibling)
+              increaseYearBtn.disabled = false;
+            }
+          }
+
+        });
+
+        increaseYearBtn.addEventListener("click", (event) => {
+          const activeYear = document.getElementById("active-year");
+          if(Number(activeYear.textContent) >= Number(yearBoundary.max_year)){
+              event.target.disabled = true;
+          }else{
+            activeYear.textContent = Number(activeYear.textContent) + 1;
+            // for minus 
+            if(Number(activeYear.textContent) <= Number(yearBoundary.min_year)){
+              reduceYearBtn.disabled = true;
+            }else{
+              reduceYearBtn.disabled = false;
+              
+            }
+            // for plus
+            if(Number(activeYear.textContent) <= Number(yearBoundary.max_year)){
+              event.target.disabled = true;
+            }else{
+              event.target.disabled = false;
+            }
+          }
+        });
+        
+
+
+       
+        window.addEventListener('message', event => {
+            const message = event.data; // The JSON data sent from the extension
+            if (message.command === 'sendData') {
+                console.log("here is the message from the panel" + JSON.stringify(message.data, null, 2) );
+
+                let table = new Tabulator("#workspace-timspent-table", {
+                data: message.data, // Load data into the table
+                height:"400px",
+                layout: "fitColumns", // Auto-resize columns to fit content
+                addRowPos:"top",          //when adding a new row, add it to the top of the table
+                pagination:"local",       //paginate the data
+                paginationSize:1,         //allow 10 rows per page of data
+                paginationCounter:"rows", //display count of paginated rows in footer
+                movableColumns:true,      //allow column order to be changed
+                initialSort:[             //set the initial sort order of the data
+                    {column:"workspace_id", dir:"asc"},
+                ],
+                columns:[
+                {title:"Workspace", field:"workspace_id", width:400},
+                {title:"Time spent", field:"total_time", width:150},
+                ],
+                });
+
+                table.on("tableBuilt", function(){
+                document.querySelector('.tabulator-page[aria-label="First Page"]').textContent = '<';
+                document.querySelector('.tabulator-page[aria-label="Next Page"]').textContent = '>';
+                document.querySelector('.tabulator-page[aria-label="Prev Page"]').textContent = '<<';
+                document.querySelector('.tabulator-page[aria-label="Last Page"]').textContent = '>>';
+                });
+
+            }
+        });
 
 
       </script>
 
     
         
-
     </body>
     </html>
   `;
