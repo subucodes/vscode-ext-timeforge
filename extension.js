@@ -564,13 +564,16 @@ const assistantFont = statsPanel.webview.asWebviewUri(vscode.Uri.file(path.join(
           justify-content: center;
         }
 
-        #heatmap::before {
-            content: "Jan            Feb            Mar            Apr            May            Jun            Jul            Aug            Sep            Oct            Nov            Dec";
-            position: absolute;
-            top: 10px;
-            left: 145px;
-            white-space: pre;
+        #months{
+          display: flex;
+          position: relative;
+          flex-direction: row;
+          justify-content: center;
+          align-items: center;
+          gap: 44px;
+          transform: translateY(30px);
         }
+
 
         #heatmap {
           position: relative;
@@ -704,6 +707,9 @@ const assistantFont = statsPanel.webview.asWebviewUri(vscode.Uri.file(path.join(
 
 
         @media (max-width: 1050px) {
+          #months {
+            display: none;
+          }
           #heatmap {
             display: none;
           }
@@ -727,6 +733,20 @@ const assistantFont = statsPanel.webview.asWebviewUri(vscode.Uri.file(path.join(
     <body>
       <h3 class="flex-center">Workspace Statistics 🚀</h3>
       <h4 class="flex-center">You have invested 🪴${formattedTime} so far !</h4>
+      <div id="months">
+        <span>Jan</span>
+        <span>Feb</span>
+        <span>Mar</span>
+        <span>Apr</span>
+        <span>May</span>
+        <span>Jun</span>
+        <span>Jul</span>
+        <span>Aug</span>
+        <span>Sep</span>
+        <span>Oct</span>
+        <span>Nov</span>
+        <span>Dec</span>
+      </div>
       <div id="heatmap">
         ${gridItems}
       </div>
