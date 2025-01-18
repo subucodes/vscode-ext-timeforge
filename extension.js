@@ -372,7 +372,7 @@ async function showStats(context) {
   const formattedTime = formatTime(totalTimeSpent);
 
   // Fetch heatmap data
-  const heatmapData = await generateHeatmapData(workspaceId);
+  const heatmapData = await generateHeatmapData();
   console.log(heatmapData);
 
   const yearBoundary = await getYearsBoundary();
@@ -424,6 +424,26 @@ async function showStats(context) {
             });
           }
           return;
+        case "repaintHeatmapWithCurrentYear":
+          // Execute your command here
+          // Extract the year sent from the webview
+          const currentYear = message.year;
+          console.log("Received year: " + currentYear);
+
+          try {
+            let heatmapDataForCurrentYear = await generateHeatmapData(currentYear); // Call function to get data from SQLite
+            statsPanel.webview.postMessage({
+              command: "dataToRepaintHeatmapWithCurrentYear",
+              data: heatmapDataForCurrentYear,
+            });
+          } catch (error) {
+            console.error("Error fetching data:", error);
+            statsPanel.webview.postMessage({
+              command: "sendData",
+              data: "Error fetching data.",
+            });
+          }
+          return;
       }
     },
     undefined,
@@ -461,8 +481,10 @@ async function fetchDataForThisDate(inputDate) {
   });
 }
 
-async function generateHeatmapData() {
-  const currentYear = new Date().getFullYear().toString();
+async function generateHeatmapData(currentYear=null) {
+  if(currentYear === null){
+    currentYear = new Date().getFullYear().toString();
+  }
   console.log("Current year:", currentYear); // Log the current year
 
   return new Promise((resolve, reject) => {
@@ -925,6 +947,14 @@ function generateHTML(
             increaseYearBtn.disabled = true;
         }
 
+        function repaintHeatmapWithCurrentYearsData(currentYear){
+          console.log("repaintHeatmapWithCurrentYearsData Request received for " +  currentYear)
+
+          let result = vscode.postMessage({ command: 'repaintHeatmapWithCurrentYear', year: currentYear });
+          console.log(result)
+        
+        }
+
 
         // event listeners for the years buttons
         reduceYearBtn.addEventListener("click", (event) => {
@@ -934,6 +964,7 @@ function generateHTML(
           }else{
             activeYear.textContent = Number(activeYear.textContent) - 1;
             console.log("activeYear.textContent after decrementing" + activeYear.textContent)
+            repaintHeatmapWithCurrentYearsData(activeYear.textContent)
             // for minus 
             if(Number(activeYear.textContent) <= Number(yearBoundary.min_year)){
               event.target.disabled = true;
@@ -944,7 +975,6 @@ function generateHTML(
             if(Number(activeYear.textContent) >= Number(yearBoundary.max_year)){
               increaseYearBtn.disabled = true;
             }else{
-              console.log(event.target.nextElementSibling)
               increaseYearBtn.disabled = false;
             }
           }
@@ -957,12 +987,12 @@ function generateHTML(
               event.target.disabled = true;
           }else{
             activeYear.textContent = Number(activeYear.textContent) + 1;
+            repaintHeatmapWithCurrentYearsData(activeYear.textContent)
             // for minus 
             if(Number(activeYear.textContent) <= Number(yearBoundary.min_year)){
               reduceYearBtn.disabled = true;
             }else{
               reduceYearBtn.disabled = false;
-              
             }
             // for plus
             if(Number(activeYear.textContent) <= Number(yearBoundary.max_year)){
@@ -982,7 +1012,7 @@ function generateHTML(
             layout: "fitColumns", // Auto-resize columns to fit content
             addRowPos:"top",          //when adding a new row, add it to the top of the table
             pagination:"local",       //paginate the data
-            paginationSize:1,         //allow 10 rows per page of data
+            paginationSize:10,         //allow 10 rows per page of data
             paginationCounter:"rows", //display count of paginated rows in footer
             movableColumns:true,      //allow column order to be changed
             initialSort:[             //set the initial sort order of the data
@@ -1002,11 +1032,11 @@ function generateHTML(
             });
         }
 
-        // load current date by default
+        // load timespent on workspace table for today's date by default
         const daySpentOnHeading = document.querySelector(".time-spent-on");
         const todayDate = new Date().toISOString().split('T')[0];
         daySpentOnHeading.textContent = "Time spent on : " + todayDate;
-        paintTableWithData(${todaysWorkspaceData})
+        paintTableWithData(${JSON.stringify(todaysWorkspaceData)}) 
 
        
         window.addEventListener('message', event => {
@@ -1014,6 +1044,9 @@ function generateHTML(
             if (message.command === 'sendData') {
                 console.log("here is the message from the panel" + JSON.stringify(message.data, null, 2) );
                 paintTableWithData(message.data);         
+            }
+            if (message.command === 'dataToRepaintHeatmapWithCurrentYear') {
+                console.log("here is the message from the panel" + JSON.stringify(message.data, null, 2) );       
             }
         });
 
