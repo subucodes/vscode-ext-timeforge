@@ -431,10 +431,68 @@ async function showStats(context) {
           console.log("Received year: " + currentYear);
 
           try {
-            let heatmapDataForCurrentYear = await generateHeatmapData(currentYear); // Call function to get data from SQLite
+            let heatmapDataForcurrentYear = await generateHeatmapData(currentYear); // Call function to get data from SQLite
+
+            // Get the number of days in the current year
+            const isLeapYear =
+              currentYear % 4 === 0 &&
+              (currentYear % 100 !== 0 || currentYear % 400 === 0);
+            const totalDaysInYear = isLeapYear ? 366 : 365;
+
+            // Initialize the full year heatmap with level-0 (default value for no data)
+            const fullYearHeatmapData = Array(totalDaysInYear).fill(0); // Default all days to level-0 (no data)
+
+            // Map heatmap data to the correct days
+            heatmapDataForcurrentYear.forEach((data) => {
+              const dayOfYear = Math.floor(
+                (new Date(data.day) - new Date(`${currentYear}-01-01`)) /
+                  (1000 * 60 * 60 * 24)
+              );
+              fullYearHeatmapData[dayOfYear] = data.value || 0; // Use data value for that day
+            });
+
+            // Generate the grid items (HTML divs) with correct level classes
+            const currentYearGridItems = fullYearHeatmapData
+              .map((value, index) => {
+                const level = Math.min(value, 4); // Limit value to 4 to match levels 0-4
+
+                // Calculate the current date for the tooltip
+                const currentDate = new Date(`${currentYear}-01-01`);
+                currentDate.setDate(currentDate.getDate() + index);
+                const formattedDate = currentDate.toISOString().slice(0, 10); // Date in YYYY-MM-DD format
+
+                // Inject filler divs to set the day inicator and the week offset if the date starts not from sunday (first of week)
+                if (index === 0) {
+                  const daysOfWeek = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+                  let dayIndicators = "";
+                  for (const day of daysOfWeek) {
+                    dayIndicators += `<div style="padding-right: 10px; font-size: 12px;">${day}</div>`;
+                  }
+
+                  const dayInNumber = currentDate.getDay();
+                  let fillerDivs = "";
+                  if (dayInNumber > 0) {
+                    for (let i = 0; i < dayInNumber; i++) {
+                      fillerDivs += `<div style="opacity: 0; pointer-events: none;"></div>`;
+                    }
+                  }
+                  return `
+                    ${dayIndicators}
+                    ${fillerDivs}
+                    <div class="day level-${level}" data-value="${value}" data-date="${formattedDate}"></div>
+                  `;
+                }
+                return `
+                <div class="day level-${level}" data-value="${value}" data-date="${formattedDate}"></div>
+              `;
+              })
+              .join(""); // Join the items into a single string
+
+
+              
             statsPanel.webview.postMessage({
               command: "dataToRepaintHeatmapWithCurrentYear",
-              data: heatmapDataForCurrentYear,
+              data: currentYearGridItems,
             });
           } catch (error) {
             console.error("Error fetching data:", error);
@@ -705,10 +763,16 @@ function generateHTML(
           transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease; /* Smooth animation */
         }
 
-        .day:hover, .day.active {
+        .day:hover {
           transform: scale(1.5); /* Slightly enlarge the element */
           border-radius: 4px; /* Slightly rounder corners */
           box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2), 0 2px 4px rgba(0, 0, 0, 0.1); /* Subtle shadow effect */
+        }
+
+        .day.active {
+            transform: scale(1.5);
+            border-radius: 4px; /* Slightly rounder corners */
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.36), 0 2px 4px rgba(0, 0, 0, 0.1); /* Subtle shadow effect */
         }
 
         .level-0 { background-color: #ebedf0; }
@@ -923,7 +987,10 @@ function generateHTML(
             currentActiveDay.classList.remove("active");
           }
           const dayToHighlightInHeatmap = document.querySelector( '[data-date="' + dayToHighlight + '"]' );
-          dayToHighlightInHeatmap.classList.add("active");
+          if(dayToHighlightInHeatmap){
+            dayToHighlightInHeatmap.classList.add("active");
+          }
+          
         }
 
         const daysInYear = document.querySelectorAll("#heatmap .day");
@@ -1057,7 +1124,8 @@ function generateHTML(
                 paintTableWithData(message.data);         
             }
             if (message.command === 'dataToRepaintHeatmapWithCurrentYear') {
-                console.log("here is the message from the panel" + JSON.stringify(message.data, null, 2) );       
+                console.log("here is the message from the panel" + JSON.stringify(message.data, null, 2) );   
+                document.querySelector("#heatmap").innerHTML =  message.data;
             }
         });
 
