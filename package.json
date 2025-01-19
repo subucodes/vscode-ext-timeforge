@@ -1,19 +1,32 @@
 {
   "name": "timeforge",
   "displayName": "TimeForge",
-  "description": "TimeForge helps you stay on track by setting a timer with a progress indicator.",
+  "description": "A Minimalistic timer in the status bar that auto tracks your time spent on workspaces",
   "version": "0.0.1",
+  "icon": "/assets/whiteWatch.png",
   "publisher": "subbusyntax",
+  "galleryBanner": {
+    "color": "#007ACC",
+    "theme": "dark"
+  },
   "engines": {
     "vscode": "^1.96.0"
   },
+  "license": "MIT",
   "categories": [
     "Other"
   ],
+  "keywords" : [
+    "timer", "simple timer"
+  ],
+  "bugs": {
+    "url": "https://github.com/subucodes/vscode-ext-timeforge/issues"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/subucodes/vscode-ext-timeforge"
   },
+  "homepage": "https://github.com/subucodes/vscode-ext-timeforge/blob/main/README.md",
   "main": "./extension.js",
   "activationEvents": [
     "onStartupFinished",
@@ -58,5 +71,6 @@
   },
   "dependencies": {
     "sqlite3": "^5.1.7"
-  }
+  },
+  "extensionKind" : ["ui"]
 }

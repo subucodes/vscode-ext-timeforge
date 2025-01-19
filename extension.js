@@ -411,6 +411,10 @@ async function showStats(context) {
       ], // resource path for the extension (optional)
     }
   );
+  const iconPath = vscode.Uri.file(
+      path.join(context.extensionPath, 'assets', 'whiteWatch.png')
+  );
+  statsPanel.iconPath = iconPath;
   statsPanel.webview.html = generateHTML(
     yearBoundary,
     heatmapData,
@@ -693,7 +697,6 @@ function generateHTML(
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Timeforge 📈</title>
         <link rel="stylesheet" href="${cssUri}"> <!-- Link to Tabulator CSS -->
-
         <style>
             @font-face {
                 font-family: 'Assistant';
