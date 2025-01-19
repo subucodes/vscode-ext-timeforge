@@ -705,7 +705,7 @@ function generateHTML(
           transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease; /* Smooth animation */
         }
 
-        .day:hover {
+        .day:hover, .day.active {
           transform: scale(1.5); /* Slightly enlarge the element */
           border-radius: 4px; /* Slightly rounder corners */
           box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2), 0 2px 4px rgba(0, 0, 0, 0.1); /* Subtle shadow effect */
@@ -917,11 +917,21 @@ function generateHTML(
         });
         const vscode = acquireVsCodeApi();
 
+        function highlightSelectedDayInHeatmap(dayToHighlight=None){
+          const currentActiveDay = document.querySelector(".day.active");
+          if(currentActiveDay){
+            currentActiveDay.classList.remove("active");
+          }
+          const dayToHighlightInHeatmap = document.querySelector( '[data-date="' + dayToHighlight + '"]' );
+          dayToHighlightInHeatmap.classList.add("active");
+        }
+
         const daysInYear = document.querySelectorAll("#heatmap .day");
         daysInYear.forEach((node) => {
           node.addEventListener('click', () => {
             console.log("Element clicked!" + node.dataset.date);
-            
+
+            highlightSelectedDayInHeatmap(node.dataset.date)            
             const daySpentOnHeading = document.querySelector(".time-spent-on");
             daySpentOnHeading.textContent = "Time spent on : " + node.dataset.date;
             let result = vscode.postMessage({ command: 'requestData', date: node.dataset.date });
@@ -1037,6 +1047,7 @@ function generateHTML(
         const todayDate = new Date().toISOString().split('T')[0];
         daySpentOnHeading.textContent = "Time spent on : " + todayDate;
         paintTableWithData(${JSON.stringify(todaysWorkspaceData)}) 
+        highlightSelectedDayInHeatmap(todayDate)
 
        
         window.addEventListener('message', event => {
