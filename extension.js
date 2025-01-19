@@ -224,7 +224,7 @@ async function timeIsUp() {
       for (let i = 0; i <= 120; i++) {
         progress.report({
           increment: 1,
-          message: `You've invested ${formattedTime} in this workspace so far.`,
+          message: `You've spent ${formattedTime} in this workspace so far.`,
         });
         await new Promise((resolve) => setTimeout(resolve, 30)); // Simulate progress
       }
@@ -280,6 +280,27 @@ function recordEndTime(elapsedTime) {
       }
     }
   );
+
+  // Delay the execution of postMessage by 3 seconds
+  setTimeout(() => {
+    if (statsPanel && statsPanel.webview && !statsPanel.webview.isDisposed) {
+      // Use an async function inside the setTimeout to handle await
+      (async () => {
+        try {
+          // Call function to get data from SQLite using await
+          const dataToSend = await fetchDataForThisDate(new Date().toISOString().split('T')[0]);
+          statsPanel.webview.postMessage({
+            command: "sendData",
+            data: dataToSend,
+            currentDate: new Date().toISOString().split('T')[0],
+          });
+        } catch (error) {
+          console.error("Error fetching data:", error);
+        }
+      })();  // Immediately invoke the async function
+    }
+  }, 3000); // 3000 milliseconds = 3 seconds to match the end of the timer
+  
 }
 
 function getTotalTimeSpent(workspaceId) {
@@ -373,13 +394,7 @@ async function showStats(context) {
 
   // Fetch heatmap data
   const heatmapData = await generateHeatmapData();
-  console.log(heatmapData);
-
   const yearBoundary = await getYearsBoundary();
-  console.log(yearBoundary);
-
-  const todayDate = new Date().toISOString().split('T')[0];
-  const todaysWorkspaceData = await fetchDataForThisDate(todayDate);
 
   statsPanel = vscode.window.createWebviewPanel(
     "timeforgeStats",
@@ -395,11 +410,71 @@ async function showStats(context) {
   statsPanel.webview.html = generateHTML(
     yearBoundary,
     heatmapData,
-    todaysWorkspaceData,
     formattedTime,
     statsPanel,
     context
   );
+
+
+  async function prepareHeatMapForRequestedYear(currentYear){
+    let heatmapDataForcurrentYear = await generateHeatmapData(currentYear); // Call function to get data from SQLite
+    // Get the number of days in the current year
+    const isLeapYear =
+      currentYear % 4 === 0 &&
+      (currentYear % 100 !== 0 || currentYear % 400 === 0);
+    const totalDaysInYear = isLeapYear ? 366 : 365;
+
+    // Initialize the full year heatmap with level-0 (default value for no data)
+    const fullYearHeatmapData = Array(totalDaysInYear).fill(0); // Default all days to level-0 (no data)
+
+    // Map heatmap data to the correct days
+    heatmapDataForcurrentYear.forEach((data) => {
+      const dayOfYear = Math.floor(
+        (new Date(data.day) - new Date(`${currentYear}-01-01`)) /
+          (1000 * 60 * 60 * 24)
+      );
+      fullYearHeatmapData[dayOfYear] = data.value || 0; // Use data value for that day
+    });
+
+    // Generate the grid items (HTML divs) with correct level classes
+    const currentYearGridItems = fullYearHeatmapData
+      .map((value, index) => {
+        const level = Math.min(value, 4); // Limit value to 4 to match levels 0-4
+
+        // Calculate the current date for the tooltip
+        const currentDate = new Date(`${currentYear}-01-01`);
+        currentDate.setDate(currentDate.getDate() + index);
+        const formattedDate = currentDate.toISOString().slice(0, 10); // Date in YYYY-MM-DD format
+
+        // Inject filler divs to set the day inicator and the week offset if the date starts not from sunday (first of week)
+        if (index === 0) {
+          const daysOfWeek = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+          let dayIndicators = "";
+          for (const day of daysOfWeek) {
+            dayIndicators += `<div style="padding-right: 10px; font-size: 12px;">${day}</div>`;
+          }
+
+          const dayInNumber = currentDate.getDay();
+          let fillerDivs = "";
+          if (dayInNumber > 0) {
+            for (let i = 0; i < dayInNumber; i++) {
+              fillerDivs += `<div style="opacity: 0; pointer-events: none;"></div>`;
+            }
+          }
+          return `
+            ${dayIndicators}
+            ${fillerDivs}
+            <div class="day level-${level}" data-value="${value}" data-date="${formattedDate}"></div>
+          `;
+        }
+        return `
+        <div class="day level-${level}" data-value="${value}" data-date="${formattedDate}"></div>
+      `;
+      })
+      .join(""); // Join the items into a single string
+
+    return currentYearGridItems;
+  }
 
   statsPanel.webview.onDidReceiveMessage(
     async (message) => {
@@ -408,7 +483,6 @@ async function showStats(context) {
           // Execute your command here
           // Extract the date sent from the webview
           const clickedDate = message.date;
-          console.log("Received date: " + clickedDate);
 
           try {
             let dataToSend = await fetchDataForThisDate(clickedDate); // Call function to get data from SQLite
@@ -427,69 +501,10 @@ async function showStats(context) {
         case "repaintHeatmapWithCurrentYear":
           // Execute your command here
           // Extract the year sent from the webview
-          const currentYear = message.year;
-          console.log("Received year: " + currentYear);
+          const requestedYear = message.year;
 
           try {
-            let heatmapDataForcurrentYear = await generateHeatmapData(currentYear); // Call function to get data from SQLite
-
-            // Get the number of days in the current year
-            const isLeapYear =
-              currentYear % 4 === 0 &&
-              (currentYear % 100 !== 0 || currentYear % 400 === 0);
-            const totalDaysInYear = isLeapYear ? 366 : 365;
-
-            // Initialize the full year heatmap with level-0 (default value for no data)
-            const fullYearHeatmapData = Array(totalDaysInYear).fill(0); // Default all days to level-0 (no data)
-
-            // Map heatmap data to the correct days
-            heatmapDataForcurrentYear.forEach((data) => {
-              const dayOfYear = Math.floor(
-                (new Date(data.day) - new Date(`${currentYear}-01-01`)) /
-                  (1000 * 60 * 60 * 24)
-              );
-              fullYearHeatmapData[dayOfYear] = data.value || 0; // Use data value for that day
-            });
-
-            // Generate the grid items (HTML divs) with correct level classes
-            const currentYearGridItems = fullYearHeatmapData
-              .map((value, index) => {
-                const level = Math.min(value, 4); // Limit value to 4 to match levels 0-4
-
-                // Calculate the current date for the tooltip
-                const currentDate = new Date(`${currentYear}-01-01`);
-                currentDate.setDate(currentDate.getDate() + index);
-                const formattedDate = currentDate.toISOString().slice(0, 10); // Date in YYYY-MM-DD format
-
-                // Inject filler divs to set the day inicator and the week offset if the date starts not from sunday (first of week)
-                if (index === 0) {
-                  const daysOfWeek = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
-                  let dayIndicators = "";
-                  for (const day of daysOfWeek) {
-                    dayIndicators += `<div style="padding-right: 10px; font-size: 12px;">${day}</div>`;
-                  }
-
-                  const dayInNumber = currentDate.getDay();
-                  let fillerDivs = "";
-                  if (dayInNumber > 0) {
-                    for (let i = 0; i < dayInNumber; i++) {
-                      fillerDivs += `<div style="opacity: 0; pointer-events: none;"></div>`;
-                    }
-                  }
-                  return `
-                    ${dayIndicators}
-                    ${fillerDivs}
-                    <div class="day level-${level}" data-value="${value}" data-date="${formattedDate}"></div>
-                  `;
-                }
-                return `
-                <div class="day level-${level}" data-value="${value}" data-date="${formattedDate}"></div>
-              `;
-              })
-              .join(""); // Join the items into a single string
-
-
-              
+            const currentYearGridItems = await prepareHeatMapForRequestedYear(requestedYear);
             statsPanel.webview.postMessage({
               command: "dataToRepaintHeatmapWithCurrentYear",
               data: currentYearGridItems,
@@ -531,7 +546,6 @@ async function fetchDataForThisDate(inputDate) {
         if (err) {
           reject(err);
         } else {
-          console.log("Rows:", rows); // Log the result of the query
           resolve(rows);
         }
       }
@@ -543,7 +557,6 @@ async function generateHeatmapData(currentYear=null) {
   if(currentYear === null){
     currentYear = new Date().getFullYear().toString();
   }
-  console.log("Current year:", currentYear); // Log the current year
 
   return new Promise((resolve, reject) => {
     db.all(
@@ -557,7 +570,6 @@ async function generateHeatmapData(currentYear=null) {
         if (err) {
           reject(err);
         } else {
-          console.log("Rows:", rows); // Log the result of the query
 
           // Map the rows to heatmapData objects that include both the day and the heatmap value
           const heatmapData = rows.map((row) => {
@@ -576,7 +588,6 @@ async function generateHeatmapData(currentYear=null) {
             };
           });
 
-          console.log("Heatmap data:", heatmapData); // Log the heatmap data
           resolve(heatmapData);
         }
       }
@@ -587,7 +598,6 @@ async function generateHeatmapData(currentYear=null) {
 function generateHTML(
   yearBoundary,
   heatmapData,
-  todaysWorkspaceData,
   formattedTime,
   statsPanel,
   context
@@ -895,16 +905,12 @@ function generateHTML(
           }
 
         }
-
-
-        
-
        
       </style>
     </head>
     <body>
       <h3 class="flex-center">Workspace Statistics 🚀</h3>
-      <h4 class="flex-center">You have invested 🪴${formattedTime} so far !</h4>
+      <h4 class="flex-center">You have spent ${formattedTime} so far in this workspace !</h4>
       
       <div id="years-container">
         <button id="reduce-year">&lt;</button>
@@ -951,137 +957,21 @@ function generateHTML(
       <script src="${chartjsJsUri}"></script> <!-- Link to Chart JS -->
         
       <script>
-        const heatmap = document.getElementById("heatmap");
-        const tooltip = document.getElementById("tooltip");
 
-        // Tooltip event listeners
-        heatmap.addEventListener("mouseover", (event) => {
-          if (event.target.classList.contains("day")) {
-            const value = event.target.getAttribute("data-value");
-            const date = event.target.getAttribute("data-date");
-
-            // Style and update the tooltip content
-            tooltip.style.display = "block";
-            tooltip.innerHTML = 
-              '<div class="tooltip-card">' +
-                '<div><strong>Date:</strong> ' + date + '</div>' +
-                '<div><strong>Hours:</strong> ' + value + '</div>' +
-              '</div>';
-
-          }
-        });
-
-        heatmap.addEventListener("mousemove", (event) => {
-          tooltip.style.top = (event.pageY + 10) + "px";
-          tooltip.style.left = (event.pageX + 10) + "px";
-        });
-
-        heatmap.addEventListener("mouseout", () => {
-          tooltip.style.display = "none";
-        });
         const vscode = acquireVsCodeApi();
-
+        
         function highlightSelectedDayInHeatmap(dayToHighlight=None){
-          const currentActiveDay = document.querySelector(".day.active");
-          if(currentActiveDay){
-            currentActiveDay.classList.remove("active");
-          }
-          const dayToHighlightInHeatmap = document.querySelector( '[data-date="' + dayToHighlight + '"]' );
-          if(dayToHighlightInHeatmap){
-            dayToHighlightInHeatmap.classList.add("active");
-          }
-          
-        }
-
-        const daysInYear = document.querySelectorAll("#heatmap .day");
-        daysInYear.forEach((node) => {
-          node.addEventListener('click', () => {
-            console.log("Element clicked!" + node.dataset.date);
-
-            highlightSelectedDayInHeatmap(node.dataset.date)            
-            const daySpentOnHeading = document.querySelector(".time-spent-on");
-            daySpentOnHeading.textContent = "Time spent on : " + node.dataset.date;
-            let result = vscode.postMessage({ command: 'requestData', date: node.dataset.date });
-            console.log(result)
-          });
-        });
-
-
-        // getting the interpolation and JSON.stringify is needed
-        const yearBoundary = ${JSON.stringify(yearBoundary)}
-        console.log("yearBoundary" + yearBoundary.min_year, yearBoundary.max_year );
-        const currentYear = ${currentYear}
-
-        
-        const reduceYearBtn = document.getElementById("reduce-year");
-        const increaseYearBtn = document.getElementById("increase-year");
-
-        // disable the increase and decrease year buttons based on the year boundary when page is loaded
-        if(Number(currentYear) <= Number(yearBoundary.min_year)){
-              reduceYearBtn.disabled = true;
-          }
-        if(Number(currentYear) >= Number(yearBoundary.max_year)){
-            increaseYearBtn.disabled = true;
-        }
-
-        function repaintHeatmapWithCurrentYearsData(currentYear){
-          console.log("repaintHeatmapWithCurrentYearsData Request received for " +  currentYear)
-
-          let result = vscode.postMessage({ command: 'repaintHeatmapWithCurrentYear', year: currentYear });
-          console.log(result)
-        
-        }
-
-
-        // event listeners for the years buttons
-        reduceYearBtn.addEventListener("click", (event) => {
-          const activeYear = document.getElementById("active-year");
-          if(Number(activeYear.textContent) <= Number(yearBoundary.min_year)){
-              event.target.disabled = true;
-          }else{
-            activeYear.textContent = Number(activeYear.textContent) - 1;
-            console.log("activeYear.textContent after decrementing" + activeYear.textContent)
-            repaintHeatmapWithCurrentYearsData(activeYear.textContent)
-            // for minus 
-            if(Number(activeYear.textContent) <= Number(yearBoundary.min_year)){
-              event.target.disabled = true;
-            }else{
-              event.target.disabled = false;
+            const currentActiveDay = document.querySelector(".day.active");
+            if(currentActiveDay){
+              currentActiveDay.classList.remove("active");
             }
-            // for plus
-            if(Number(activeYear.textContent) >= Number(yearBoundary.max_year)){
-              increaseYearBtn.disabled = true;
-            }else{
-              increaseYearBtn.disabled = false;
+            const dayToHighlightInHeatmap = document.querySelector( '[data-date="' + dayToHighlight + '"]' );
+            if(dayToHighlightInHeatmap){
+              dayToHighlightInHeatmap.classList.add("active");
             }
+            
           }
 
-        });
-
-        increaseYearBtn.addEventListener("click", (event) => {
-          const activeYear = document.getElementById("active-year");
-          if(Number(activeYear.textContent) >= Number(yearBoundary.max_year)){
-              event.target.disabled = true;
-          }else{
-            activeYear.textContent = Number(activeYear.textContent) + 1;
-            repaintHeatmapWithCurrentYearsData(activeYear.textContent)
-            // for minus 
-            if(Number(activeYear.textContent) <= Number(yearBoundary.min_year)){
-              reduceYearBtn.disabled = true;
-            }else{
-              reduceYearBtn.disabled = false;
-            }
-            // for plus
-            if(Number(activeYear.textContent) <= Number(yearBoundary.max_year)){
-              event.target.disabled = true;
-            }else{
-              event.target.disabled = false;
-            }
-          }
-        });
-
-
-        
         function paintTableWithData(tableData){
             let table = new Tabulator("#workspace-timspent-table", {
             data: tableData, // Load data into the table
@@ -1109,31 +999,167 @@ function generateHTML(
             });
         }
 
-        // load timespent on workspace table for today's date by default
-        const daySpentOnHeading = document.querySelector(".time-spent-on");
-        const todayDate = new Date().toISOString().split('T')[0];
-        daySpentOnHeading.textContent = "Time spent on : " + todayDate;
-        paintTableWithData(${JSON.stringify(todaysWorkspaceData)}) 
-        highlightSelectedDayInHeatmap(todayDate)
+        function attachEventListenersForHeatMap(){
+            const heatmap = document.getElementById("heatmap");
+            const tooltip = document.getElementById("tooltip");
 
+            // Tooltip event listeners
+            heatmap.addEventListener("mouseover", (event) => {
+              if (event.target.classList.contains("day")) {
+                const value = event.target.getAttribute("data-value");
+                const date = event.target.getAttribute("data-date");
+
+                // Style and update the tooltip content
+                tooltip.style.display = "block";
+                tooltip.innerHTML = 
+                  '<div class="tooltip-card">' +
+                    '<div><strong>Date:</strong> ' + date + '</div>' +
+                    '<div><strong>Hours:</strong> ' + value + '</div>' +
+                  '</div>';
+
+              }
+            });
+
+            heatmap.addEventListener("mousemove", (event) => {
+              tooltip.style.top = (event.pageY + 10) + "px";
+              tooltip.style.left = (event.pageX + 10) + "px";
+            });
+
+            heatmap.addEventListener("mouseout", () => {
+              tooltip.style.display = "none";
+            });
+            
+
+
+            const daysInYear = document.querySelectorAll("#heatmap .day");
+            daysInYear.forEach((node) => {
+              node.addEventListener('click', () => {
+                highlightSelectedDayInHeatmap(node.dataset.date)            
+                const daySpentOnHeading = document.querySelector(".time-spent-on");
+                daySpentOnHeading.textContent = "Time spent on : " + node.dataset.date;
+                vscode.postMessage({ command: 'requestData', date: node.dataset.date });
+              });
+            });
+
+            // load timespent on workspace table for today's date by default
+            const daySpentOnHeading = document.querySelector(".time-spent-on");
+            let todayDate = new Date().toISOString().split('T')[0];
+            
+            // paintTableWithData
+            const activeYear = document.getElementById("active-year").textContent;
+            if (todayDate.includes(activeYear.toString())) {
+              } else {
+                todayDate = activeYear + '-01-01'
+              }
+              
+            highlightSelectedDayInHeatmap(todayDate)
+            daySpentOnHeading.textContent = "Time spent on : " + todayDate;
+            vscode.postMessage({ command: 'requestData', date: todayDate });
+        }
        
-        window.addEventListener('message', event => {
-            const message = event.data; // The JSON data sent from the extension
-            if (message.command === 'sendData') {
-                console.log("here is the message from the panel" + JSON.stringify(message.data, null, 2) );
-                paintTableWithData(message.data);         
+
+        function initYearChangeEventListeners(){
+          // getting the interpolation and JSON.stringify is needed
+          const yearBoundary = ${JSON.stringify(yearBoundary)}
+          const currentYear = ${currentYear}
+
+          
+          const reduceYearBtn = document.getElementById("reduce-year");
+          const increaseYearBtn = document.getElementById("increase-year");
+
+          // disable the increase and decrease year buttons based on the year boundary when page is loaded
+          if(Number(currentYear) <= Number(yearBoundary.min_year)){
+                reduceYearBtn.disabled = true;
             }
-            if (message.command === 'dataToRepaintHeatmapWithCurrentYear') {
-                console.log("here is the message from the panel" + JSON.stringify(message.data, null, 2) );   
-                document.querySelector("#heatmap").innerHTML =  message.data;
+          if(Number(currentYear) >= Number(yearBoundary.max_year)){
+              increaseYearBtn.disabled = true;
+          }
+
+          function repaintHeatmapWithCurrentYearsData(currentYear){
+            vscode.postMessage({ command: 'repaintHeatmapWithCurrentYear', year: currentYear });
+          }
+
+
+          // event listeners for the years buttons
+          reduceYearBtn.addEventListener("click", (event) => {
+            const activeYear = document.getElementById("active-year");
+            if(Number(activeYear.textContent) <= Number(yearBoundary.min_year)){
+                event.target.disabled = true;
+            }else{
+              activeYear.textContent = Number(activeYear.textContent) - 1;
+              repaintHeatmapWithCurrentYearsData(activeYear.textContent)
+              // for minus 
+              if(Number(activeYear.textContent) <= Number(yearBoundary.min_year)){
+                event.target.disabled = true;
+              }else{
+                event.target.disabled = false;
+              }
+              // for plus
+              if(Number(activeYear.textContent) >= Number(yearBoundary.max_year)){
+                increaseYearBtn.disabled = true;
+              }else{
+                increaseYearBtn.disabled = false;
+              }
             }
-        });
 
+          });
 
-      </script>
-
-    
+          increaseYearBtn.addEventListener("click", (event) => {
+            const activeYear = document.getElementById("active-year");
+            if(Number(activeYear.textContent) >= Number(yearBoundary.max_year)){
+                event.target.disabled = true;
+            }else{
+              activeYear.textContent = Number(activeYear.textContent) + 1;
+              repaintHeatmapWithCurrentYearsData(activeYear.textContent)
+              // for minus 
+              if(Number(activeYear.textContent) <= Number(yearBoundary.min_year)){
+                reduceYearBtn.disabled = true;
+              }else{
+                reduceYearBtn.disabled = false;
+              }
+              // for plus
+              if(Number(activeYear.textContent) <= Number(yearBoundary.max_year)){
+                event.target.disabled = true;
+              }else{
+                event.target.disabled = false;
+              }
+            }
+          });
         
+        }
+
+
+        function listenForMessagesFromVSCode(){
+          window.addEventListener('message', event => {
+                const message = event.data; // The JSON data sent from the extension
+                if (message.command === 'sendData') {
+                    // this scenario is when the message is sent when the timer is ended from extension
+                    if(message?.currentDate){
+                      if(document.querySelector(".day.active").dataset.date == message?.currentDate){
+                        paintTableWithData(message.data); 
+                      }
+                    }else{
+                      // when user clicks or extension loads
+                      paintTableWithData(message.data); 
+                    }
+                }
+                if (message.command === 'dataToRepaintHeatmapWithCurrentYear') {   
+                    document.querySelector("#heatmap").innerHTML =  message.data;
+                    attachEventListenersForHeatMap();
+                }
+            });
+        
+        }
+
+        function expectoDOMLoadum(){
+            attachEventListenersForHeatMap();
+            initYearChangeEventListeners();
+            listenForMessagesFromVSCode();   
+        }
+        
+        // Magic spell that waits for the DOM to load and then applies the magic
+        document.addEventListener("DOMContentLoaded", expectoDOMLoadum);
+      </script>
     </body>
     </html>
   `;
