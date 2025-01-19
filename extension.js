@@ -289,10 +289,13 @@ function recordEndTime(elapsedTime) {
         try {
           // Call function to get data from SQLite using await
           const dataToSend = await fetchDataForThisDate(new Date().toISOString().split('T')[0]);
+          const totalSpentTime = await getTotalTimeSpent(getWorkspaceId())
+          const formattedTime = formatTime(totalSpentTime);
           statsPanel.webview.postMessage({
             command: "sendData",
             data: dataToSend,
             currentDate: new Date().toISOString().split('T')[0],
+            timeSpent: formattedTime,
           });
         } catch (error) {
           console.error("Error fetching data:", error);
@@ -300,14 +303,15 @@ function recordEndTime(elapsedTime) {
       })();  // Immediately invoke the async function
     }
   }, 3000); // 3000 milliseconds = 3 seconds to match the end of the timer
-  
+
 }
 
-function getTotalTimeSpent(workspaceId) {
+function getTotalTimeSpent(workspaceId, year = null) {
+  year = (year === null) ? new Date().getFullYear().toString() : year;
   return new Promise((resolve, reject) => {
     db.get(
-      `SELECT SUM(seconds_elapsed) AS total_time FROM time_records WHERE workspace_id = ?`,
-      [workspaceId],
+      `SELECT SUM(seconds_elapsed) AS total_time FROM time_records WHERE workspace_id = ? and strftime('%Y', day) = ?`,
+      [workspaceId, year],
       (err, row) => {
         if (err) {
           console.error("Error fetching total time spent for workspace:", err);
@@ -322,7 +326,7 @@ function getTotalTimeSpent(workspaceId) {
 function getYearsBoundary() {
   return new Promise((resolve, reject) => {
     db.get(
-      `SELECT MIN(strftime('%Y', day)) AS min_year, MAX(strftime('%Y', day)) AS max_year FROM time_records`,
+      `SELECT COALESCE(MIN(strftime('%Y', day)), strftime('%Y', 'now')) AS min_year, COALESCE(MAX(strftime('%Y', day)), strftime('%Y', 'now')) AS max_year FROM time_records`,
       (err, row) => {
         if (err) {
           console.error(
@@ -398,7 +402,7 @@ async function showStats(context) {
 
   statsPanel = vscode.window.createWebviewPanel(
     "timeforgeStats",
-    "TimeForge Stats",
+    "TimeForge 📈",
     vscode.ViewColumn.One,
     {
       enableScripts: true, // allow running scripts in webview
@@ -416,7 +420,7 @@ async function showStats(context) {
   );
 
 
-  async function prepareHeatMapForRequestedYear(currentYear){
+  async function prepareHeatMapForRequestedYear(currentYear) {
     let heatmapDataForcurrentYear = await generateHeatmapData(currentYear); // Call function to get data from SQLite
     // Get the number of days in the current year
     const isLeapYear =
@@ -431,7 +435,7 @@ async function showStats(context) {
     heatmapDataForcurrentYear.forEach((data) => {
       const dayOfYear = Math.floor(
         (new Date(data.day) - new Date(`${currentYear}-01-01`)) /
-          (1000 * 60 * 60 * 24)
+        (1000 * 60 * 60 * 24)
       );
       fullYearHeatmapData[dayOfYear] = data.value || 0; // Use data value for that day
     });
@@ -480,10 +484,7 @@ async function showStats(context) {
     async (message) => {
       switch (message.command) {
         case "requestData":
-          // Execute your command here
-          // Extract the date sent from the webview
           const clickedDate = message.date;
-
           try {
             let dataToSend = await fetchDataForThisDate(clickedDate); // Call function to get data from SQLite
             statsPanel.webview.postMessage({
@@ -499,15 +500,15 @@ async function showStats(context) {
           }
           return;
         case "repaintHeatmapWithCurrentYear":
-          // Execute your command here
-          // Extract the year sent from the webview
           const requestedYear = message.year;
-
           try {
             const currentYearGridItems = await prepareHeatMapForRequestedYear(requestedYear);
+            const totalTimeSpent = await getTotalTimeSpent(getWorkspaceId(), message.year)
+            const formattedTime = formatTime(totalTimeSpent);
             statsPanel.webview.postMessage({
               command: "dataToRepaintHeatmapWithCurrentYear",
               data: currentYearGridItems,
+              timeSpent: formattedTime,
             });
           } catch (error) {
             console.error("Error fetching data:", error);
@@ -553,8 +554,8 @@ async function fetchDataForThisDate(inputDate) {
   });
 }
 
-async function generateHeatmapData(currentYear=null) {
-  if(currentYear === null){
+async function generateHeatmapData(currentYear = null) {
+  if (currentYear === null) {
     currentYear = new Date().getFullYear().toString();
   }
 
@@ -618,7 +619,7 @@ function generateHTML(
   heatmapData.forEach((data) => {
     const dayOfYear = Math.floor(
       (new Date(data.day) - new Date(`${currentYear}-01-01`)) /
-        (1000 * 60 * 60 * 24)
+      (1000 * 60 * 60 * 24)
     );
     fullYearHeatmapData[dayOfYear] = data.value || 0; // Use data value for that day
   });
@@ -686,480 +687,511 @@ function generateHTML(
   return `
     <!DOCTYPE html>
     <html lang="en">
+
     <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Timeforge 📈</title>
-       <link rel="stylesheet" href="${cssUri}"> <!-- Link to Tabulator CSS --> 
-        
-      <style>
-      @font-face {
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Timeforge 📈</title>
+        <link rel="stylesheet" href="${cssUri}"> <!-- Link to Tabulator CSS -->
+
+        <style>
+            @font-face {
                 font-family: 'Assistant';
-                src: url('${assistantFont}') format('truetype'); /* Use the generated URI */
+                src: url('${assistantFont}') format('truetype');
                 font-weight: normal;
                 font-style: normal;
             }
 
-        body {
-          font-family: 'Assistant',sans-serif;
-          margin: 0;
-          padding: 20px;
-          background-color: #f9f9f9;
-          color: #333;
-        }
+            body {
+                font-family: 'Assistant', sans-serif;
+                margin: 0;
+                padding: 20px;
+                background-color: #f9f9f9;
+                color: #333;
+            }
 
-        .flex-center{
-          display:flex;
-          justify-content: center;
-        }
+            .flex-center {
+                display: flex;
+                justify-content: center;
+            }
 
-        #years-container{
-          display: flex;
-          flex-direction: row;
-          justify-content: center;
-          gap: 10px;
-          align-items: center;
-        }
+            #years-container {
+                display: flex;
+                flex-direction: row;
+                justify-content: center;
+                gap: 10px;
+                align-items: center;
+            }
 
-        #years-container button {
-          cursor: pointer;
-          border: none;
-          background-color: transparent; /* Transparent color */
-          padding: 3px 6px;
-          transition: background-color 0.1s ease-in-out; /* Animate only border color */
-          box-sizing: border-box; /* Ensures padding and border do not affect size */
-          border-radius: 4px;
-          font-weight: 400;
-        }
+            #years-container button {
+                cursor: pointer;
+                border: none;
+                background-color: transparent;
+                padding: 3px 6px;
+                transition: background-color 0.1s ease-in-out;
+                box-sizing: border-box;
+                border-radius: 4px;
+                font-weight: 400;
+            }
 
-        #years-container button:hover {
-          background-color: #80808029;
-        }
-
-
-        #months{
-          display: flex;
-          position: relative;
-          flex-direction: row;
-          justify-content: center;
-          align-items: center;
-          gap: 44px;
-          transform: translateY(30px);
-        }
+            #years-container button:hover {
+                background-color: #80808029;
+            }
 
 
-        #heatmap {
-          position: relative;
-          display: grid;
-          grid-template-rows: repeat(7, 14px); /* 7 rows (one row per day of the week) */
-          grid-auto-flow: column;
-          gap: 2px;
-          margin: auto;
-          justify-content: center;
-          padding-top: 40px;
-          padding-bottom: 40px;
-          border-radius: 10px;
-          /*box-shadow: -1px 1px 6px rgba(40, 40, 40, 0.09);*/
-          box-shadow:  0px 0px 20px 5px rgba(40, 40, 40, 0.09);
-          min-width: 850px;
-          max-width: 1000px;
-        }
-
-        .day {
-          width: 12px;
-          height: 12px;
-          background-color: #ebedf0; /* Default background */
-          border-radius: 2px;
-          transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease; /* Smooth animation */
-        }
-
-        .day:hover {
-          transform: scale(1.5); /* Slightly enlarge the element */
-          border-radius: 4px; /* Slightly rounder corners */
-          box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2), 0 2px 4px rgba(0, 0, 0, 0.1); /* Subtle shadow effect */
-        }
-
-        .day.active {
-            transform: scale(1.5);
-            border-radius: 4px; /* Slightly rounder corners */
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.36), 0 2px 4px rgba(0, 0, 0, 0.1); /* Subtle shadow effect */
-        }
-
-        .level-0 { background-color: #ebedf0; }
-        .level-1 { background-color: #c6e48b; }
-        .level-2 { background-color: #7bc96f; }
-        .level-3 { background-color: #239a3b; }
-        .level-4 { background-color: #196127; }
+            #months {
+                display: flex;
+                position: relative;
+                flex-direction: row;
+                justify-content: center;
+                align-items: center;
+                gap: 44px;
+                transform: translateY(30px);
+            }
 
 
-        #legend {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 4px;
-          transform: translateY(-30px);
-        }
+            #heatmap {
+                position: relative;
+                display: grid;
+                /* 7 rows (one row per day of the week) */
+                grid-template-rows: repeat(7, 14px);
+                grid-auto-flow: column;
+                gap: 2px;
+                margin: auto;
+                justify-content: center;
+                padding-top: 40px;
+                padding-bottom: 40px;
+                border-radius: 10px;
+                box-shadow: 0px 0px 20px 5px rgba(40, 40, 40, 0.09);
+                min-width: 850px;
+                max-width: 1000px;
+            }
 
-        #legend .day {
-          width: 12px;
-          height: 12px;
-        }
+            .day {
+                width: 12px;
+                height: 12px;
+                background-color: #ebedf0;
+                border-radius: 2px;
+                transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+            }
 
-        .tooltip-card {
-          background-color: #ffffff; /* White background */
-          border-radius: 10px; /* Rounded corners */
-          box-shadow: 0px 4px 6px rgba(40, 40, 40, 0.09); /* Subtle shadow */
-          padding: 10px; /* Inner padding */
-          font-size: 14px; /* Adjust font size */
-          color: #333; /* Text color */
-          text-align: left;
-          line-height: 1.4;
-          width: max-content; /* Card size adjusts to content */
-        }
+            .day:hover {
+                transform: scale(1.5);
+                border-radius: 4px;
+                box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2), 0 2px 4px rgba(0, 0, 0, 0.1);
+            }
 
-        .tooltip {
-          position: absolute; /* Position relative to the event target */
-          display: none; /* Initially hidden */
-          z-index: 10; /* Ensure it appears on top */
-          pointer-events: none; /* Prevent tooltip interference */
-        }
+            .day.active {
+                transform: scale(1.5);
+                border-radius: 4px;
+                box-shadow: 0 4px 8px rgba(0, 0, 0, 0.36), 0 2px 4px rgba(0, 0, 0, 0.1);
+            }
 
-        #table-chart-container{
-          display: flex;
-          flex-direction: row;
-          flex-wrap: nowrap;
-          align-content: center;
-          justify-content: center;
-          align-items: center;
-          gap: 50px;
-        }
+            .level-0 {
+                background-color: #ebedf0;
+            }
 
-        .tabulator{
-        background-color: #fff;
-        border: 1px solid #fff;
-        box-shadow:  0px 0px 20px 5px rgba(40, 40, 40, 0.09);
-        box-sizing : border-box;
-        border-radius : 10px;
-        }
+            .level-1 {
+                background-color: #c6e48b;
+            }
 
-        .tabulator-row.tabulator-row-even {
-       background-color:#fff; 
-      }
-          .tabulator .tabulator-header .tabulator-col {
-        background-color:#fff; 
-        border-right:1px solid #fff
-          }
+            .level-2 {
+                background-color: #7bc96f;
+            }
 
+            .level-3 {
+                background-color: #239a3b;
+            }
+
+            .level-4 {
+                background-color: #196127;
+            }
 
 
-          .tabulator-row .tabulator-cell {
-          border-right:1px solid #fff;
-          padding-left : 10px;
-          padding-top : 4px;
-          padding-bottom : 4px;
-          }
+            #legend {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 4px;
+                transform: translateY(-30px);
+            }
 
-          .tabulator .tabulator-header {
-          border-bottom : 1px solid #00000008;
-          }
+            #legend .day {
+                width: 12px;
+                height: 12px;
+            }
 
-          .tabulator .tabulator-header .tabulator-col .tabulator-col-content {
-          padding-top: 5px;
-          padding-left: 10px;
-          }
+            .tooltip-card {
+                background-color: #ffffff;
+                border-radius: 10px;
+                box-shadow: 0px 4px 6px rgba(40, 40, 40, 0.09);
+                padding: 10px;
+                font-size: 14px;
+                color: #333;
+                text-align: left;
+                line-height: 1.4;
+                width: max-content;
+            }
 
-          .tabulator .tabulator-footer {
-          background-color: #ffffff;
-          border-top: 1px solid #9999996b;
-          }
+            .tooltip {
+                position: absolute;
+                display: none;
+                z-index: 10;
+                pointer-events: none;
+            }
 
-          .tabulator .tabulator-footer .tabulator-page {
-          border: 1px solid #ffffff;
-          color: #333;
-          }
+            #table-chart-container {
+                display: flex;
+                flex-direction: row;
+                flex-wrap: nowrap;
+                align-content: center;
+                justify-content: center;
+                align-items: center;
+                gap: 50px;
+            }
 
-          .tabulator .tabulator-footer .tabulator-page.active{
-          border: 2px solid #7bc96f4d;
-          color: #333;
-          font-weight: bold;
-          }
+            .tabulator {
+                background-color: #fff;
+                border: 1px solid #fff;
+                box-shadow: 0px 0px 20px 5px rgba(40, 40, 40, 0.09);
+                box-sizing: border-box;
+                border-radius: 10px;
+            }
+
+            .tabulator-row.tabulator-row-even {
+                background-color: #fff;
+            }
+
+            .tabulator .tabulator-header .tabulator-col {
+                background-color: #fff;
+                border-right: 1px solid #fff
+            }
 
 
-        @media (max-width: 1050px) {
-          #months {
-            display: none;
-          }
-          #years-container{
-          display: none;
-          }
-          #heatmap {
-            display: none;
-          }
-          #legend{
-          display:none;
-          
-          }
 
-          #table-chart-container{
-            flex-direction: column;
-          }
+            .tabulator-row .tabulator-cell {
+                border-right: 1px solid #fff;
+                padding-left: 10px;
+                padding-top: 4px;
+                padding-bottom: 4px;
+            }
 
-        }
-       
-      </style>
+            .tabulator .tabulator-header {
+                border-bottom: 1px solid #00000008;
+            }
+
+            .tabulator .tabulator-header .tabulator-col .tabulator-col-content {
+                padding-top: 5px;
+                padding-left: 10px;
+            }
+
+            .tabulator .tabulator-footer {
+                background-color: #ffffff;
+                border-top: 1px solid #9999996b;
+            }
+
+            .tabulator .tabulator-footer .tabulator-page {
+                border: 1px solid #ffffff;
+                color: #333;
+            }
+
+            .tabulator .tabulator-footer .tabulator-page.active {
+                border: 2px solid #7bc96f4d;
+                color: #333;
+                font-weight: bold;
+            }
+
+
+            @media (max-width: 1050px) {
+                #months {
+                    display: none;
+                }
+
+                #years-container {
+                    display: none;
+                }
+
+                #heatmap {
+                    display: none;
+                }
+
+                #legend {
+                    display: none;
+
+                }
+
+                #table-chart-container {
+                    flex-direction: column;
+                }
+
+            }
+        </style>
     </head>
+
     <body>
-      <h3 class="flex-center">Workspace Statistics 🚀</h3>
-      <h4 class="flex-center">You have spent ${formattedTime} so far in this workspace !</h4>
-      
-      <div id="years-container">
-        <button id="reduce-year">&lt;</button>
-        <h4 id="active-year">${currentYear}</h4>
-        <button id="increase-year">&gt;</button>
-      </div>
+        <h3 class="flex-center">Workspace Statistics 🚀</h3>
+        <h4 id="ws-timespent-summary" class="flex-center">You have spent ${formattedTime} so far in this workspace !</h4>
 
-      <div id="months">
-        <span>Jan</span>
-        <span>Feb</span>
-        <span>Mar</span>
-        <span>Apr</span>
-        <span>May</span>
-        <span>Jun</span>
-        <span>Jul</span>
-        <span>Aug</span>
-        <span>Sep</span>
-        <span>Oct</span>
-        <span>Nov</span>
-        <span>Dec</span>
-      </div>
-      <div id="heatmap">
-        ${gridItems}
-      </div>
-      <div id="legend">
-        less 
-        <span class="day level-0"></span>
-        <span class="day level-1"></span>
-        <span class="day level-2"></span>
-        <span class="day level-3"></span>
-        <span class="day level-4"></span>
-        more
-      </div>
-      <div class="tooltip" id="tooltip"></div>
+        <div id="years-container">
+            <button id="reduce-year">&lt;</button>
+            <h4 id="active-year">${currentYear}</h4>
+            <button id="increase-year">&gt;</button>
+        </div>
 
-      <h3 class="flex-center time-spent-on"></h3>
+        <div id="months">
+            <span>Jan</span>
+            <span>Feb</span>
+            <span>Mar</span>
+            <span>Apr</span>
+            <span>May</span>
+            <span>Jun</span>
+            <span>Jul</span>
+            <span>Aug</span>
+            <span>Sep</span>
+            <span>Oct</span>
+            <span>Nov</span>
+            <span>Dec</span>
+        </div>
+        <div id="heatmap">
+            ${gridItems}
+        </div>
+        <div id="legend">
+            less
+            <span class="day level-0"></span>
+            <span class="day level-1"></span>
+            <span class="day level-2"></span>
+            <span class="day level-3"></span>
+            <span class="day level-4"></span>
+            more
+        </div>
+        <div class="tooltip" id="tooltip"></div>
 
-      <div id="table-chart-container">
-        <div id="workspace-timspent-table"></div>
-      </div>
+        <h4 class="flex-center time-spent-on"></h4>
 
-
-      <script src="${jsUri}"></script> <!-- Link to Tabulator JS -->
-      <script src="${chartjsJsUri}"></script> <!-- Link to Chart JS -->
-        
-      <script>
-
-        const vscode = acquireVsCodeApi();
-        
-        function highlightSelectedDayInHeatmap(dayToHighlight=None){
-            const currentActiveDay = document.querySelector(".day.active");
-            if(currentActiveDay){
-              currentActiveDay.classList.remove("active");
-            }
-            const dayToHighlightInHeatmap = document.querySelector( '[data-date="' + dayToHighlight + '"]' );
-            if(dayToHighlightInHeatmap){
-              dayToHighlightInHeatmap.classList.add("active");
-            }
-            
-          }
-
-        function paintTableWithData(tableData){
-            let table = new Tabulator("#workspace-timspent-table", {
-            data: tableData, // Load data into the table
-            height:"400px",
-            layout: "fitColumns", // Auto-resize columns to fit content
-            addRowPos:"top",          //when adding a new row, add it to the top of the table
-            pagination:"local",       //paginate the data
-            paginationSize:10,         //allow 10 rows per page of data
-            paginationCounter:"rows", //display count of paginated rows in footer
-            movableColumns:true,      //allow column order to be changed
-            initialSort:[             //set the initial sort order of the data
-                {column:"workspace_id", dir:"asc"},
-            ],
-            columns:[
-              {title:"Workspace", field:"workspace_id", width:400},
-              {title:"Time spent", field:"total_time", width:150},
-            ],
-            });
-
-            table.on("tableBuilt", function(){
-              document.querySelector('.tabulator-page[aria-label="First Page"]').textContent = '<';
-              document.querySelector('.tabulator-page[aria-label="Next Page"]').textContent = '>';
-              document.querySelector('.tabulator-page[aria-label="Prev Page"]').textContent = '<<';
-              document.querySelector('.tabulator-page[aria-label="Last Page"]').textContent = '>>';
-            });
-        }
-
-        function attachEventListenersForHeatMap(){
-            const heatmap = document.getElementById("heatmap");
-            const tooltip = document.getElementById("tooltip");
-
-            // Tooltip event listeners
-            heatmap.addEventListener("mouseover", (event) => {
-              if (event.target.classList.contains("day")) {
-                const value = event.target.getAttribute("data-value");
-                const date = event.target.getAttribute("data-date");
-
-                // Style and update the tooltip content
-                tooltip.style.display = "block";
-                tooltip.innerHTML = 
-                  '<div class="tooltip-card">' +
-                    '<div><strong>Date:</strong> ' + date + '</div>' +
-                    '<div><strong>Hours:</strong> ' + value + '</div>' +
-                  '</div>';
-
-              }
-            });
-
-            heatmap.addEventListener("mousemove", (event) => {
-              tooltip.style.top = (event.pageY + 10) + "px";
-              tooltip.style.left = (event.pageX + 10) + "px";
-            });
-
-            heatmap.addEventListener("mouseout", () => {
-              tooltip.style.display = "none";
-            });
-            
+        <div id="table-chart-container">
+            <div id="workspace-timspent-table"></div>
+        </div>
 
 
-            const daysInYear = document.querySelectorAll("#heatmap .day");
-            daysInYear.forEach((node) => {
-              node.addEventListener('click', () => {
-                highlightSelectedDayInHeatmap(node.dataset.date)            
-                const daySpentOnHeading = document.querySelector(".time-spent-on");
-                daySpentOnHeading.textContent = "Time spent on : " + node.dataset.date;
-                vscode.postMessage({ command: 'requestData', date: node.dataset.date });
-              });
-            });
+        <script src="${jsUri}"></script> <!-- Link to Tabulator JS -->
+        <script src="${chartjsJsUri}"></script> <!-- Link to Chart JS -->
 
-            // load timespent on workspace table for today's date by default
-            const daySpentOnHeading = document.querySelector(".time-spent-on");
-            let todayDate = new Date().toISOString().split('T')[0];
-            
-            // paintTableWithData
-            const activeYear = document.getElementById("active-year").textContent;
-            if (todayDate.includes(activeYear.toString())) {
-              } else {
-                todayDate = activeYear + '-01-01'
-              }
-              
-            highlightSelectedDayInHeatmap(todayDate)
-            daySpentOnHeading.textContent = "Time spent on : " + todayDate;
-            vscode.postMessage({ command: 'requestData', date: todayDate });
-        }
-       
+        <script>
 
-        function initYearChangeEventListeners(){
-          // getting the interpolation and JSON.stringify is needed
-          const yearBoundary = ${JSON.stringify(yearBoundary)}
-          const currentYear = ${currentYear}
+            const vscode = acquireVsCodeApi();
 
-          
-          const reduceYearBtn = document.getElementById("reduce-year");
-          const increaseYearBtn = document.getElementById("increase-year");
+            function highlightSelectedDayInHeatmap(dayToHighlight = None) {
+                const currentActiveDay = document.querySelector(".day.active");
+                if (currentActiveDay) {
+                    currentActiveDay.classList.remove("active");
+                }
+                const dayToHighlightInHeatmap = document.querySelector('[data-date="' + dayToHighlight + '"]');
+                if (dayToHighlightInHeatmap) {
+                    dayToHighlightInHeatmap.classList.add("active");
+                }
 
-          // disable the increase and decrease year buttons based on the year boundary when page is loaded
-          if(Number(currentYear) <= Number(yearBoundary.min_year)){
-                reduceYearBtn.disabled = true;
-            }
-          if(Number(currentYear) >= Number(yearBoundary.max_year)){
-              increaseYearBtn.disabled = true;
-          }
-
-          function repaintHeatmapWithCurrentYearsData(currentYear){
-            vscode.postMessage({ command: 'repaintHeatmapWithCurrentYear', year: currentYear });
-          }
-
-
-          // event listeners for the years buttons
-          reduceYearBtn.addEventListener("click", (event) => {
-            const activeYear = document.getElementById("active-year");
-            if(Number(activeYear.textContent) <= Number(yearBoundary.min_year)){
-                event.target.disabled = true;
-            }else{
-              activeYear.textContent = Number(activeYear.textContent) - 1;
-              repaintHeatmapWithCurrentYearsData(activeYear.textContent)
-              // for minus 
-              if(Number(activeYear.textContent) <= Number(yearBoundary.min_year)){
-                event.target.disabled = true;
-              }else{
-                event.target.disabled = false;
-              }
-              // for plus
-              if(Number(activeYear.textContent) >= Number(yearBoundary.max_year)){
-                increaseYearBtn.disabled = true;
-              }else{
-                increaseYearBtn.disabled = false;
-              }
             }
 
-          });
+            function paintTableWithData(tableData) {
+                let table = new Tabulator("#workspace-timspent-table", {
+                    data: tableData, 
+                    height: "400px",
+                    layout: "fitColumns", 
+                    addRowPos: "top",          
+                    pagination: "local",       
+                    paginationSize: 10,         
+                    paginationCounter: "rows", 
+                    movableColumns: true,      
+                    initialSort: [             
+                        { column: "workspace_id", dir: "asc" },
+                    ],
+                    columns: [
+                        { title: "Workspace", field: "workspace_id", width: 400 },
+                        { title: "Time spent", field: "total_time", width: 150 },
+                    ],
+                });
 
-          increaseYearBtn.addEventListener("click", (event) => {
-            const activeYear = document.getElementById("active-year");
-            if(Number(activeYear.textContent) >= Number(yearBoundary.max_year)){
-                event.target.disabled = true;
-            }else{
-              activeYear.textContent = Number(activeYear.textContent) + 1;
-              repaintHeatmapWithCurrentYearsData(activeYear.textContent)
-              // for minus 
-              if(Number(activeYear.textContent) <= Number(yearBoundary.min_year)){
-                reduceYearBtn.disabled = true;
-              }else{
-                reduceYearBtn.disabled = false;
-              }
-              // for plus
-              if(Number(activeYear.textContent) <= Number(yearBoundary.max_year)){
-                event.target.disabled = true;
-              }else{
-                event.target.disabled = false;
-              }
+                table.on("tableBuilt", function () {
+                    document.querySelector('.tabulator-page[aria-label="First Page"]').textContent = '<';
+                    document.querySelector('.tabulator-page[aria-label="Next Page"]').textContent = '>';
+                    document.querySelector('.tabulator-page[aria-label="Prev Page"]').textContent = '<<';
+                    document.querySelector('.tabulator-page[aria-label="Last Page"]').textContent = '>>';
+                });
             }
-          });
-        
-        }
 
+            function attachEventListenersForHeatMap() {
+                const heatmap = document.getElementById("heatmap");
+                const tooltip = document.getElementById("tooltip");
 
-        function listenForMessagesFromVSCode(){
-          window.addEventListener('message', event => {
-                const message = event.data; // The JSON data sent from the extension
-                if (message.command === 'sendData') {
-                    // this scenario is when the message is sent when the timer is ended from extension
-                    if(message?.currentDate){
-                      if(document.querySelector(".day.active").dataset.date == message?.currentDate){
-                        paintTableWithData(message.data); 
-                      }
-                    }else{
-                      // when user clicks or extension loads
-                      paintTableWithData(message.data); 
+                // Tooltip event listeners
+                heatmap.addEventListener("mouseover", (event) => {
+                    if (event.target.classList.contains("day")) {
+                        const value = event.target.getAttribute("data-value");
+                        const date = event.target.getAttribute("data-date");
+
+                        // Style and update the tooltip content
+                        tooltip.style.display = "block";
+                        tooltip.innerHTML =
+                            '<div class="tooltip-card">' +
+                            '<div><strong>Date:</strong> ' + date + '</div>' +
+                            '<div><strong>Hours:</strong> ' + value + '</div>' +
+                            '</div>';
+
                     }
-                }
-                if (message.command === 'dataToRepaintHeatmapWithCurrentYear') {   
-                    document.querySelector("#heatmap").innerHTML =  message.data;
-                    attachEventListenersForHeatMap();
-                }
-            });
-        
-        }
+                });
 
-        function expectoDOMLoadum(){
-            attachEventListenersForHeatMap();
-            initYearChangeEventListeners();
-            listenForMessagesFromVSCode();   
-        }
-        
-        // Magic spell that waits for the DOM to load and then applies the magic
-        document.addEventListener("DOMContentLoaded", expectoDOMLoadum);
-      </script>
+                heatmap.addEventListener("mousemove", (event) => {
+                    tooltip.style.top = (event.pageY + 10) + "px";
+                    tooltip.style.left = (event.pageX + 10) + "px";
+                });
+
+                heatmap.addEventListener("mouseout", () => {
+                    tooltip.style.display = "none";
+                });
+
+
+
+                const daysInYear = document.querySelectorAll("#heatmap .day");
+                daysInYear.forEach((node) => {
+                    node.addEventListener('click', () => {
+                        highlightSelectedDayInHeatmap(node.dataset.date)
+                        const daySpentOnHeading = document.querySelector(".time-spent-on");
+                        daySpentOnHeading.textContent = "Time spent on : " + node.dataset.date;
+                        vscode.postMessage({ command: 'requestData', date: node.dataset.date });
+                    });
+                });
+
+                // load timespent on workspace table for today's date by default
+                const daySpentOnHeading = document.querySelector(".time-spent-on");
+                let todayDate = new Date().toISOString().split('T')[0];
+
+                // paintTableWithData
+                const activeYear = document.getElementById("active-year").textContent;
+                if (todayDate.includes(activeYear.toString())) {
+                } else {
+                    todayDate = activeYear + '-01-01'
+                }
+
+                highlightSelectedDayInHeatmap(todayDate)
+                daySpentOnHeading.textContent = "Time spent on : " + todayDate;
+                vscode.postMessage({ command: 'requestData', date: todayDate });
+            }
+
+
+            function initYearChangeEventListeners() {
+                // getting the interpolation and JSON.stringify is needed
+                const yearBoundary = ${ JSON.stringify(yearBoundary) }
+                const currentYear = ${ currentYear }
+
+
+                const reduceYearBtn = document.getElementById("reduce-year");
+                const increaseYearBtn = document.getElementById("increase-year");
+
+                // disable the increase and decrease year buttons based on the year boundary when page is loaded
+                if (Number(currentYear) <= Number(yearBoundary.min_year)) {
+                    reduceYearBtn.disabled = true;
+                }
+                if (Number(currentYear) >= Number(yearBoundary.max_year)) {
+                    increaseYearBtn.disabled = true;
+                }
+
+                function repaintHeatmapWithCurrentYearsData(currentYear) {
+                    vscode.postMessage({ command: 'repaintHeatmapWithCurrentYear', year: currentYear });
+                }
+
+
+                // event listeners for the years buttons
+                reduceYearBtn.addEventListener("click", (event) => {
+                    const activeYear = document.getElementById("active-year");
+                    if (Number(activeYear.textContent) <= Number(yearBoundary.min_year)) {
+                        event.target.disabled = true;
+                    } else {
+                        activeYear.textContent = Number(activeYear.textContent) - 1;
+                        repaintHeatmapWithCurrentYearsData(activeYear.textContent)
+                        // for minus 
+                        if (Number(activeYear.textContent) <= Number(yearBoundary.min_year)) {
+                            event.target.disabled = true;
+                        } else {
+                            event.target.disabled = false;
+                        }
+                        // for plus
+                        if (Number(activeYear.textContent) >= Number(yearBoundary.max_year)) {
+                            increaseYearBtn.disabled = true;
+                        } else {
+                            increaseYearBtn.disabled = false;
+                        }
+                    }
+
+                });
+
+                increaseYearBtn.addEventListener("click", (event) => {
+                    const activeYear = document.getElementById("active-year");
+                    if (Number(activeYear.textContent) >= Number(yearBoundary.max_year)) {
+                        event.target.disabled = true;
+                    } else {
+                        activeYear.textContent = Number(activeYear.textContent) + 1;
+                        repaintHeatmapWithCurrentYearsData(activeYear.textContent)
+                        // for minus 
+                        if (Number(activeYear.textContent) <= Number(yearBoundary.min_year)) {
+                            reduceYearBtn.disabled = true;
+                        } else {
+                            reduceYearBtn.disabled = false;
+                        }
+                        // for plus
+                        if (Number(activeYear.textContent) <= Number(yearBoundary.max_year)) {
+                            event.target.disabled = true;
+                        } else {
+                            event.target.disabled = false;
+                        }
+                    }
+                });
+            
+            }
+
+            function updateTimeSpentSummary(timeSpent) {
+                const timespentSummary = document.querySelector("#ws-timespent-summary");
+                timespentSummary.textContent = "You have spent " + timeSpent + " so far in this workspace !"
+            }
+
+
+            function listenForMessagesFromVSCode() {
+                window.addEventListener('message', event => {
+                    const message = event.data; // The JSON data sent from the extension
+                    if (message.command === 'sendData') {
+                        // this scenario is when the message is sent when the timer is ended from extension
+                        if (message?.currentDate) {
+                            if (document.querySelector(".day.active").dataset.date == message?.currentDate) {
+                                paintTableWithData(message.data);
+                            }
+                            if (message?.timeSpent && document.getElementById("active-year").textContent == new Date().getFullYear().toString()) {
+                                updateTimeSpentSummary(message?.timeSpent)
+                            }
+
+                        } else {
+                            // when user clicks or extension loads
+                            paintTableWithData(message.data);
+                        }
+                    }
+                    if (message.command === 'dataToRepaintHeatmapWithCurrentYear') {
+                        document.querySelector("#heatmap").innerHTML = message.data;
+                        attachEventListenersForHeatMap();
+                        if (message?.timeSpent) {
+                            updateTimeSpentSummary(message?.timeSpent)
+                        }
+                    }
+                });
+
+            }
+
+            function expectoDOMLoadum() {
+                attachEventListenersForHeatMap();
+                initYearChangeEventListeners();
+                listenForMessagesFromVSCode();
+            }
+
+            // Magic spell that waits for the DOM to load and then applies the magic
+            document.addEventListener("DOMContentLoaded", expectoDOMLoadum);
+        </script>
     </body>
     </html>
   `;
