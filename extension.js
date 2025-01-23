@@ -767,7 +767,7 @@ function generateHTML(
                 border-radius: 10px;
                 box-shadow: 0px 0px 20px 5px rgba(40, 40, 40, 0.09);
                 min-width: 850px;
-                max-width: 1000px;
+                max-width: 890px;
             }
 
             .day {
@@ -843,7 +843,7 @@ function generateHTML(
                 pointer-events: none;
             }
 
-            #table-chart-container {
+            #workspace-tbl-container {
                 display: flex;
                 flex-direction: row;
                 flex-wrap: nowrap;
@@ -905,7 +905,7 @@ function generateHTML(
             }
 
 
-            @media (max-width: 1050px) {
+            @media (max-width: 900px) {
                 #months {
                     display: none;
                 }
@@ -920,14 +920,9 @@ function generateHTML(
 
                 #legend {
                     display: none;
-
                 }
 
-                #table-chart-container {
-                    flex-direction: column;
-                }
-
-            }
+            } 
         </style>
     </head>
 
@@ -971,7 +966,7 @@ function generateHTML(
 
         <h4 class="flex-center time-spent-on"></h4>
 
-        <div id="table-chart-container">
+        <div id="workspace-tbl-container">
             <div id="workspace-timspent-table"></div>
         </div>
 
@@ -998,7 +993,7 @@ function generateHTML(
             function paintTableWithData(tableData) {
                 let table = new Tabulator("#workspace-timspent-table", {
                     data: tableData, 
-                    height: "400px",
+                    height: "300px",
                     layout: "fitColumns", 
                     addRowPos: "top",          
                     pagination: "local",       
@@ -1010,7 +1005,7 @@ function generateHTML(
                     ],
                     columns: [
                         { title: "Workspace", field: "workspace_id", width: 400 },
-                        { title: "Time spent", field: "total_time", width: 150 },
+                        { title: "Spent", field: "total_time", width: 100 },
                     ],
                 });
 
