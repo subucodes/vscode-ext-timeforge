@@ -110,7 +110,7 @@ function setTimer() {
 
 function getWorkspaceId() {
   const workspaceFolders = vscode.workspace.workspaceFolders;
-  return workspaceFolders ? workspaceFolders[0].uri.fsPath : "unknown";
+  return workspaceFolders ? workspaceFolders[0].uri.fsPath : "Void";
 }
 
 function recordStartTime() {
@@ -927,6 +927,10 @@ function generateHTML(
     </head>
 
     <body>
+          <div class="theme-switcher">
+          <input type="checkbox" id="theme-toggle" />
+          <label for="theme-toggle">Dark Mode</label>
+      </div>
         <h3 class="flex-center">Workspace Statistics 🚀</h3>
         <h4 id="ws-timespent-summary" class="flex-center">You have spent ${formattedTime} so far in this workspace !</h4>
 
