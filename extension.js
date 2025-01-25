@@ -676,16 +676,206 @@ function generateHTML(
       path.join(context.extensionPath, "assets", "tabulator.min.js")
     )
   );
-  const chartjsJsUri = statsPanel.webview.asWebviewUri(
-    vscode.Uri.file(
-      path.join(context.extensionPath, "assets", "chart.umd.min.js")
-    )
-  );
   const assistantFont = statsPanel.webview.asWebviewUri(
     vscode.Uri.file(
       path.join(context.extensionPath, "assets", "Assistant-Regular.ttf")
     )
   );
+
+  // Add this CSS to the style section in generateHTML function
+const darkModeCSS = `
+body.dark-mode {
+    background-color: #1e1e1e;
+    color: rgb(243, 238, 238);
+    transition: background-color 0.3s ease;
+}
+
+.dark-mode #heatmap {
+    background-color: #252526;
+    box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.3);
+    border: 1px solid #3c3c3c;
+}
+
+.dark-mode .level-0 {
+    background-color:rgb(247 247 247 / 45%);
+}
+
+.dark-mode .tabulator {
+    background-color: #252526;
+    color:rgb(243, 238, 238);
+    border: 1px solid #3c3c3c;
+}
+
+.dark-mode .tabulator-header {
+    background-color: #2d2d2d;
+    border-bottom: 2px solid #3c3c3c;
+}
+
+.dark-mode .tabulator-header .tabulator-col {
+    background-color: #2d2d2d;
+    color: rgb(243, 238, 238);
+    border-right: 1px solid #2d2d2d;
+}
+
+.dark-mode .tabulator-row {
+    background-color: #252526;
+}
+
+.dark-mode .tabulator-row:hover {
+    background-color:rgb(8 8 8 / 86%);
+    cursor: pointer;
+}
+
+.dark-mode .tabulator .tabulator-header .tabulator-header-contents .tabulator-headers {
+    background: #252526;
+}
+
+.dark-mode .tabulator-header .tabulator-col.tabulator-sortable.tabulator-col-sorter-element:hover {
+    background-color: rgb(59 56 56 / 24%);
+    cursor: pointer;
+}
+
+.dark-mode .tabulator-cell {
+    color:rgb(243, 238, 238);
+    border-right: 1px solid #2d2d2d;
+}
+
+.dark-mode .tabulator-footer {
+    background-color: #2d2d2d;
+    border-top: 2px solid #3c3c3c;
+}
+
+.dark-mode .tabulator-footer-contents{
+    color:rgb(243, 238, 238);
+}
+    
+.dark-mode .tabulator .tabulator-footer .tabulator-page {
+  border: 1px solid #3c3c3c;
+  color:rgb(243, 238, 238);
+}
+
+.dark-mode .tooltip-card {
+    background-color: #252526;
+    color: rgb(243, 238, 238);
+    border: 1px solid #3c3c3c;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+
+/* Theme Switcher Enhancements */
+.theme-switcher {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+}
+
+#theme-toggle {
+    display: none;
+}
+
+.theme-switcher label {
+    cursor: pointer;
+    font-size: 1.5em;
+    user-select: none;
+    transition: transform 0.2s ease;
+}
+
+.theme-switcher label:hover {
+    transform: scale(1.1);
+}
+
+/* Year Navigation */
+.dark-mode #years-container button {
+    color: rgb(243, 238, 238);
+    background: rgba(137, 209, 133, 0.1);
+    border-radius: 3px;
+    padding: 2px 8px;
+    transition: all 0.2s ease;
+}
+
+.dark-mode #years-container button:hover {
+    background: rgba(137, 209, 133, 0.2);
+    transform: scale(1.05);
+}
+
+/* Text Hierarchy */
+.dark-mode #months {
+    z-index: 3;
+}
+.dark-mode #months span {
+    color: rgb(243, 238, 238);
+}
+
+.dark-mode #legend {
+    color: rgb(243, 238, 238);
+}
+
+.dark-mode h3, .dark-mode h4 {
+    color: rgb(243, 238, 238);
+}
+
+.dark-mode .day:hover {
+    transform: scale(1.5);
+    border-radius: 4px;
+    box-shadow: 0 4px 8px rgba(255, 255, 255, 0.6), 0 2px 4px rgba(255, 255, 255, 0.6);
+}
+
+.dark-mode .day.active {
+    transform: scale(1.5);
+    border-radius: 4px;
+    box-shadow: 0 4px 8px rgba(255, 255, 255, 0.6), 0 2px 4px rgba(255, 255, 255, 0.6);
+}
+
+/* Smooth Transitions */
+.day, .tabulator, .theme-switcher, #years-container button {
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Scrollbar Styling */
+.dark-mode ::-webkit-scrollbar {
+    width: 8px;
+}
+
+.dark-mode ::-webkit-scrollbar-thumb {
+    background-color: #3c3c3c;
+    border-radius: 4px;
+}
+
+.dark-mode ::-webkit-scrollbar-track {
+    background: #252526;
+}
+`;
+
+// Add this JavaScript to the script section in generateHTML function
+// Updated darkModeJS
+const darkModeJS = `
+    const themeToggle = document.getElementById('theme-toggle');
+    const body = document.body;
+    const themeLabel = document.querySelector('label[for="theme-toggle"]');
+
+    // Initial emoji based on system preference
+    const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    themeLabel.textContent = systemDark ? '🌙' : '🔆';
+
+    // Load saved theme
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme === 'dark') {
+        body.classList.add('dark-mode');
+        themeToggle.checked = true;
+        themeLabel.textContent = '🌙';
+    } else if (savedTheme === 'light') {
+        body.classList.remove('dark-mode');
+        themeToggle.checked = false;
+        themeLabel.textContent = '🔆';
+    }
+
+    themeToggle.addEventListener('change', () => {
+        body.classList.toggle('dark-mode');
+        localStorage.setItem('theme', themeToggle.checked ? 'dark' : 'light');
+        themeLabel.textContent = themeToggle.checked ? '🌙' : '🔆';
+    });
+`;
+
 
   // Return the complete HTML structure
   return `
@@ -870,7 +1060,19 @@ function generateHTML(
                 border-right: 1px solid #fff
             }
 
+            .tabulator .tabulator-header .tabulator-header-contents .tabulator-headers {
+                background: #fff;
+            }
 
+            .tabulator-row.tabulator-selectable:hover {
+              background-color: #bbbbbb21;
+              cursor: pointer;
+            }
+
+            .tabulator .tabulator-header .tabulator-col.tabulator-sortable.tabulator-col-sorter-element:hover {
+                background-color: #bbbbbb21;
+                cursor: pointer;
+            }
 
             .tabulator-row .tabulator-cell {
                 border-right: 1px solid #fff;
@@ -923,13 +1125,16 @@ function generateHTML(
                 }
 
             } 
+
+            ${darkModeCSS}
         </style>
     </head>
 
     <body>
-          <div class="theme-switcher">
+      <div class="theme-switcher">
           <input type="checkbox" id="theme-toggle" />
-          <label for="theme-toggle">Dark Mode</label>
+          <label for="theme-toggle">🔆</label>
+      </div>
       </div>
         <h3 class="flex-center">Workspace Statistics 🚀</h3>
         <h4 id="ws-timespent-summary" class="flex-center">You have spent ${formattedTime} so far in this workspace !</h4>
@@ -976,7 +1181,6 @@ function generateHTML(
 
 
         <script src="${jsUri}"></script> <!-- Link to Tabulator JS -->
-        <script src="${chartjsJsUri}"></script> <!-- Link to Chart JS -->
 
         <script>
 
@@ -1193,6 +1397,8 @@ function generateHTML(
 
             // Magic spell that waits for the DOM to load and then applies the magic
             document.addEventListener("DOMContentLoaded", expectoDOMLoadum);
+
+            ${darkModeJS}
         </script>
     </body>
     </html>
