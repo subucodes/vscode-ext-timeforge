@@ -17,7 +17,7 @@
     "Other"
   ],
   "keywords" : [
-    "timer", "simple timer"
+    "timer", "simple timer", "time spent analytics"
   ],
   "bugs": {
     "url": "https://github.com/subucodes/vscode-ext-timeforge/issues"
@@ -51,7 +51,7 @@
       },
       {
         "command": "timeforge.stats",
-        "title": "Show Stats"
+        "title": "Timeforge Stats"
       }
     ]
   },

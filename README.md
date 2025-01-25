@@ -1,13 +1,13 @@
 # TimeForge
 
-A Visual Studio Code extension for efficient time tracking of coding activities.
+A Minimalistic timer in the status bar that auto tracks your time spent on workspaces.
 
 ## Features
 
-- Automated time tracking for coding sessions
-- Project-based time monitoring
-- Detailed activity reports
-- Easy-to-use interface integrated with VS Code
+- ⏱ Set, Pause and Stop the timer with clicks
+- 📂 Workspace-based time monitoring
+- 📊 Github like heatmap to represent your time spent
+- ⚡ Easy-to-use interface integrated with VS Code
 
 ## Installation
 
@@ -18,7 +18,7 @@ A Visual Studio Code extension for efficient time tracking of coding activities.
 
 ## Usage
 
-The extension automatically starts tracking time when you open VS Code. Access your time tracking data through the TimeForge panel in the activity bar.
+Click for the timer to start ▶️ ; click to pause ⏸️ and double click to stop ⏹️
 
 ## Commands
 
@@ -29,6 +29,7 @@ The extension automatically starts tracking time when you open VS Code. Access y
 ## Requirements
 
 - VS Code 1.60.0 or higher
+- Node.js & npm
 
 ## Contributing
 
