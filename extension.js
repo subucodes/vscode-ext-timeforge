@@ -288,26 +288,27 @@ function recordEndTime(elapsedTime) {
       (async () => {
         try {
           // Call function to get data from SQLite using await
-          const dataToSend = await fetchDataForThisDate(new Date().toISOString().split('T')[0]);
-          const totalSpentTime = await getTotalTimeSpent(getWorkspaceId())
+          const dataToSend = await fetchDataForThisDate(
+            new Date().toISOString().split("T")[0]
+          );
+          const totalSpentTime = await getTotalTimeSpent(getWorkspaceId());
           const formattedTime = formatTime(totalSpentTime);
           statsPanel.webview.postMessage({
             command: "sendData",
             data: dataToSend,
-            currentDate: new Date().toISOString().split('T')[0],
+            currentDate: new Date().toISOString().split("T")[0],
             timeSpent: formattedTime,
           });
         } catch (error) {
           console.error("Error fetching data:", error);
         }
-      })();  // Immediately invoke the async function
+      })(); // Immediately invoke the async function
     }
   }, 3000); // 3000 milliseconds = 3 seconds to match the end of the timer
-
 }
 
 function getTotalTimeSpent(workspaceId, year = null) {
-  year = (year === null) ? new Date().getFullYear().toString() : year;
+  year = year === null ? new Date().getFullYear().toString() : year;
   return new Promise((resolve, reject) => {
     db.get(
       `SELECT SUM(seconds_elapsed) AS total_time FROM time_records WHERE workspace_id = ? and strftime('%Y', day) = ?`,
@@ -412,7 +413,7 @@ async function showStats(context) {
     }
   );
   const iconPath = vscode.Uri.file(
-      path.join(context.extensionPath, 'assets', 'whiteWatch.png')
+    path.join(context.extensionPath, "assets", "whiteWatch.png")
   );
   statsPanel.iconPath = iconPath;
   statsPanel.webview.html = generateHTML(
@@ -422,7 +423,6 @@ async function showStats(context) {
     statsPanel,
     context
   );
-
 
   async function prepareHeatMapForRequestedYear(currentYear) {
     let heatmapDataForcurrentYear = await generateHeatmapData(currentYear); // Call function to get data from SQLite
@@ -439,7 +439,7 @@ async function showStats(context) {
     heatmapDataForcurrentYear.forEach((data) => {
       const dayOfYear = Math.floor(
         (new Date(data.day) - new Date(`${currentYear}-01-01`)) /
-        (1000 * 60 * 60 * 24)
+          (1000 * 60 * 60 * 24)
       );
       fullYearHeatmapData[dayOfYear] = data.value || 0; // Use data value for that day
     });
@@ -506,8 +506,13 @@ async function showStats(context) {
         case "repaintHeatmapWithCurrentYear":
           const requestedYear = message.year;
           try {
-            const currentYearGridItems = await prepareHeatMapForRequestedYear(requestedYear);
-            const totalTimeSpent = await getTotalTimeSpent(getWorkspaceId(), message.year)
+            const currentYearGridItems = await prepareHeatMapForRequestedYear(
+              requestedYear
+            );
+            const totalTimeSpent = await getTotalTimeSpent(
+              getWorkspaceId(),
+              message.year
+            );
             const formattedTime = formatTime(totalTimeSpent);
             statsPanel.webview.postMessage({
               command: "dataToRepaintHeatmapWithCurrentYear",
@@ -575,7 +580,6 @@ async function generateHeatmapData(currentYear = null) {
         if (err) {
           reject(err);
         } else {
-
           // Map the rows to heatmapData objects that include both the day and the heatmap value
           const heatmapData = rows.map((row) => {
             const totalTime = row.total_time || 0;
@@ -623,7 +627,7 @@ function generateHTML(
   heatmapData.forEach((data) => {
     const dayOfYear = Math.floor(
       (new Date(data.day) - new Date(`${currentYear}-01-01`)) /
-      (1000 * 60 * 60 * 24)
+        (1000 * 60 * 60 * 24)
     );
     fullYearHeatmapData[dayOfYear] = data.value || 0; // Use data value for that day
   });
@@ -978,8 +982,15 @@ function generateHTML(
             }
                 
             .dark-mode .tabulator .tabulator-footer .tabulator-page {
-              border: 1px solid #3c3c3c;
               color:rgb(243, 238, 238);
+              border: 1px solid #2d2d2d;
+              background-color: #2d2d2d;
+            }
+
+            .dark-mode .tabulator .tabulator-footer .tabulator-page.active {
+                border: 2px solid #7bc96f4d;
+                color:rgb(243, 238, 238);
+                font-weight: bold;
             }
 
             .dark-mode .tooltip-card {
@@ -1041,14 +1052,17 @@ function generateHTML(
             /* Year Navigation */
             .dark-mode #years-container button {
                 color: rgb(243, 238, 238);
-                background: rgba(137, 209, 133, 0.1);
                 border-radius: 3px;
                 padding: 2px 8px;
                 transition: all 0.2s ease;
             }
 
+            .dark-mode #years-container button:disabled {
+                color: #3c3c3c;
+            }
+
             .dark-mode #years-container button:hover {
-                background: rgba(137, 209, 133, 0.2);
+                background: rgb(247 249 247 / 16%);
                 transform: scale(1.05);
             }
 
@@ -1071,13 +1085,13 @@ function generateHTML(
             .dark-mode .day:hover {
                 transform: scale(1.5);
                 border-radius: 4px;
-                box-shadow: 0 4px 8px rgba(255, 255, 255, 0.6), 0 2px 4px rgba(255, 255, 255, 0.6);
+                box-shadow: 0px -2px 7px 0px rgb(12 12 12 / 91%), 0 2px 7px 4px rgb(8 8 8 / 43%);
             }
 
             .dark-mode .day.active {
                 transform: scale(1.5);
                 border-radius: 4px;
-                box-shadow: 0 4px 8px rgba(255, 255, 255, 0.6), 0 2px 4px rgba(255, 255, 255, 0.6);
+                box-shadow: 0px -2px 7px 0px rgb(12 12 12 / 91%), 0 2px 7px 4px rgb(8 8 8 / 43%);
             }
 
             /* Smooth Transitions */
@@ -1101,22 +1115,9 @@ function generateHTML(
 
 
             @media (max-width: 900px) {
-                #months {
+                #months, #years-container,#heatmap,#legend   {
                     display: none;
                 }
-
-                #years-container {
-                    display: none;
-                }
-
-                #heatmap {
-                    display: none;
-                }
-
-                #legend {
-                    display: none;
-                }
-
             } 
 
         </style>
@@ -1204,7 +1205,7 @@ function generateHTML(
                     layout: "fitColumns", 
                     addRowPos: "top",          
                     pagination: "local",       
-                    paginationSize: 10,         
+                    paginationSize: 1,         
                     paginationCounter: "rows", 
                     movableColumns: true,      
                     initialSort: [             
@@ -1285,8 +1286,8 @@ function generateHTML(
 
             function initYearChangeEventListeners() {
                 // getting the interpolation and JSON.stringify is needed
-                const yearBoundary = ${ JSON.stringify(yearBoundary) }
-                const currentYear = ${ currentYear }
+                const yearBoundary = ${JSON.stringify(yearBoundary)}
+                const currentYear = ${currentYear}
 
 
                 const reduceYearBtn = document.getElementById("reduce-year");
