@@ -682,218 +682,6 @@ function generateHTML(
     )
   );
 
-  // Add this CSS to the style section in generateHTML function
-const darkModeCSS = `
-body.dark-mode {
-    background-color: #1e1e1e;
-    color: rgb(243, 238, 238);
-    transition: background-color 0.3s ease;
-}
-
-.dark-mode #heatmap {
-    background-color: #252526;
-    box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.3);
-    border: 1px solid #3c3c3c;
-}
-
-.dark-mode .level-0 {
-    background-color:rgb(247 247 247 / 45%);
-}
-
-.dark-mode .tabulator {
-    background-color: #252526;
-    color:rgb(243, 238, 238);
-    border: 1px solid #3c3c3c;
-}
-
-.dark-mode .tabulator-header {
-    background-color: #2d2d2d;
-    border-bottom: 2px solid #3c3c3c;
-}
-
-.dark-mode .tabulator-header .tabulator-col {
-    background-color: #2d2d2d;
-    color: rgb(243, 238, 238);
-    border-right: 1px solid #2d2d2d;
-}
-
-.dark-mode .tabulator-row {
-    background-color: #252526;
-}
-
-.dark-mode .tabulator-row:hover {
-    background-color:rgb(8 8 8 / 86%);
-    cursor: pointer;
-}
-
-.dark-mode .tabulator .tabulator-header .tabulator-header-contents .tabulator-headers {
-    background: #252526;
-}
-
-.dark-mode .tabulator-header .tabulator-col.tabulator-sortable.tabulator-col-sorter-element:hover {
-    background-color: rgb(59 56 56 / 24%);
-    cursor: pointer;
-}
-
-.dark-mode .tabulator-cell {
-    color:rgb(243, 238, 238);
-    border-right: 1px solid #2d2d2d;
-}
-
-.dark-mode .tabulator-footer {
-    background-color: #2d2d2d;
-    border-top: 2px solid #3c3c3c;
-}
-
-.dark-mode .tabulator-footer-contents{
-    color:rgb(243, 238, 238);
-}
-    
-.dark-mode .tabulator .tabulator-footer .tabulator-page {
-  border: 1px solid #3c3c3c;
-  color:rgb(243, 238, 238);
-}
-
-.dark-mode .tooltip-card {
-    background-color: #252526;
-    color: rgb(243, 238, 238);
-    border: 1px solid #3c3c3c;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-}
-
-
-/* Theme Switcher Enhancements */
-.theme-switcher {
-    position: absolute;
-    top: 20px;
-    right: 20px;
-    cursor: pointer;
-    z-index: 1000;
-}
-
-#theme-toggle {
-    display: none;
-}
-
-.light-icon,
-.dark-icon {
-    width: 24px;
-    height: 24px;
-    transition: opacity 0.3s ease, transform 0.3s ease;
-}
-
-.dark-icon {
-    display: none;
-    opacity: 0;
-}
-
-.light-icon {
-    display: block;
-    opacity: 1;
-}
-
-.dark-mode .dark-icon {
-    display: block;
-    opacity: 1;
-}
-
-.dark-mode .light-icon {
-    display: none;
-    opacity: 0;
-}
-
-.theme-switcher:hover svg {
-    transform: scale(1.1);
-}
-
-.theme-switcher:active svg {
-    transform: scale(0.95);
-}
-
-/* Year Navigation */
-.dark-mode #years-container button {
-    color: rgb(243, 238, 238);
-    background: rgba(137, 209, 133, 0.1);
-    border-radius: 3px;
-    padding: 2px 8px;
-    transition: all 0.2s ease;
-}
-
-.dark-mode #years-container button:hover {
-    background: rgba(137, 209, 133, 0.2);
-    transform: scale(1.05);
-}
-
-/* Text Hierarchy */
-.dark-mode #months {
-    z-index: 3;
-}
-.dark-mode #months span {
-    color: rgb(243, 238, 238);
-}
-
-.dark-mode #legend {
-    color: rgb(243, 238, 238);
-}
-
-.dark-mode h3, .dark-mode h4 {
-    color: rgb(243, 238, 238);
-}
-
-.dark-mode .day:hover {
-    transform: scale(1.5);
-    border-radius: 4px;
-    box-shadow: 0 4px 8px rgba(255, 255, 255, 0.6), 0 2px 4px rgba(255, 255, 255, 0.6);
-}
-
-.dark-mode .day.active {
-    transform: scale(1.5);
-    border-radius: 4px;
-    box-shadow: 0 4px 8px rgba(255, 255, 255, 0.6), 0 2px 4px rgba(255, 255, 255, 0.6);
-}
-
-/* Smooth Transitions */
-.day, .tabulator, .theme-switcher, #years-container button {
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-/* Scrollbar Styling */
-.dark-mode ::-webkit-scrollbar {
-    width: 8px;
-}
-
-.dark-mode ::-webkit-scrollbar-thumb {
-    background-color: #3c3c3c;
-    border-radius: 4px;
-}
-
-.dark-mode ::-webkit-scrollbar-track {
-    background: #252526;
-}
-`;
-
-// Add this JavaScript to the script section in generateHTML function
-// Updated darkModeJS
-const darkModeJS = `
-    const themeToggle = document.getElementById('theme-toggle');
-    const body = document.body;
-
-    // Initialize theme
-    const savedTheme = localStorage.getItem('theme');
-    const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    
-    if (savedTheme === 'dark' || (!savedTheme && systemDark)) {
-        body.classList.add('dark-mode');
-        themeToggle.checked = true;
-    }
-
-    themeToggle.addEventListener('change', () => {
-        body.classList.toggle('dark-mode');
-        localStorage.setItem('theme', themeToggle.checked ? 'dark' : 'light');
-    });
-`;
-
-
   // Return the complete HTML structure
   return `
     <!DOCTYPE html>
@@ -1123,6 +911,194 @@ const darkModeJS = `
                 font-weight: bold;
             }
 
+            /* Dark mode theme toggle */
+            body.dark-mode {
+                background-color: #1e1e1e;
+                color: rgb(243, 238, 238);
+                transition: background-color 0.3s ease;
+            }
+
+            .dark-mode #heatmap {
+                background-color: #252526;
+                box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.3);
+                border: 1px solid #3c3c3c;
+            }
+
+            .dark-mode .level-0 {
+                background-color:rgb(247 247 247 / 45%);
+            }
+
+            .dark-mode .tabulator {
+                background-color: #252526;
+                color:rgb(243, 238, 238);
+                border: 1px solid #3c3c3c;
+            }
+
+            .dark-mode .tabulator-header {
+                background-color: #2d2d2d;
+                border-bottom: 2px solid #3c3c3c;
+            }
+
+            .dark-mode .tabulator-header .tabulator-col {
+                background-color: #2d2d2d;
+                color: rgb(243, 238, 238);
+                border-right: 1px solid #2d2d2d;
+            }
+
+            .dark-mode .tabulator-row {
+                background-color: #252526;
+            }
+
+            .dark-mode .tabulator-row:hover {
+                background-color:rgb(8 8 8 / 86%);
+                cursor: pointer;
+            }
+
+            .dark-mode .tabulator .tabulator-header .tabulator-header-contents .tabulator-headers {
+                background: #252526;
+            }
+
+            .dark-mode .tabulator-header .tabulator-col.tabulator-sortable.tabulator-col-sorter-element:hover {
+                background-color: rgb(59 56 56 / 24%);
+                cursor: pointer;
+            }
+
+            .dark-mode .tabulator-cell {
+                color:rgb(243, 238, 238);
+                border-right: 1px solid #2d2d2d;
+            }
+
+            .dark-mode .tabulator-footer {
+                background-color: #2d2d2d;
+                border-top: 2px solid #3c3c3c;
+            }
+
+            .dark-mode .tabulator-footer-contents{
+                color:rgb(243, 238, 238);
+            }
+                
+            .dark-mode .tabulator .tabulator-footer .tabulator-page {
+              border: 1px solid #3c3c3c;
+              color:rgb(243, 238, 238);
+            }
+
+            .dark-mode .tooltip-card {
+                background-color: #252526;
+                color: rgb(243, 238, 238);
+                border: 1px solid #3c3c3c;
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+            }
+
+
+            /* Theme Switcher Enhancements */
+            .theme-switcher {
+                position: absolute;
+                top: 20px;
+                right: 20px;
+                cursor: pointer;
+                z-index: 1000;
+            }
+
+            #theme-toggle {
+                display: none;
+            }
+
+            .light-icon,
+            .dark-icon {
+                width: 24px;
+                height: 24px;
+                transition: opacity 0.3s ease, transform 0.3s ease;
+            }
+
+            .dark-icon {
+                display: none;
+                opacity: 0;
+            }
+
+            .light-icon {
+                display: block;
+                opacity: 1;
+            }
+
+            .dark-mode .dark-icon {
+                display: block;
+                opacity: 1;
+            }
+
+            .dark-mode .light-icon {
+                display: none;
+                opacity: 0;
+            }
+
+            .theme-switcher:hover svg {
+                transform: scale(1.1);
+            }
+
+            .theme-switcher:active svg {
+                transform: scale(0.95);
+            }
+
+            /* Year Navigation */
+            .dark-mode #years-container button {
+                color: rgb(243, 238, 238);
+                background: rgba(137, 209, 133, 0.1);
+                border-radius: 3px;
+                padding: 2px 8px;
+                transition: all 0.2s ease;
+            }
+
+            .dark-mode #years-container button:hover {
+                background: rgba(137, 209, 133, 0.2);
+                transform: scale(1.05);
+            }
+
+            /* Text Hierarchy */
+            .dark-mode #months {
+                z-index: 3;
+            }
+            .dark-mode #months span {
+                color: rgb(243, 238, 238);
+            }
+
+            .dark-mode #legend {
+                color: rgb(243, 238, 238);
+            }
+
+            .dark-mode h3, .dark-mode h4 {
+                color: rgb(243, 238, 238);
+            }
+
+            .dark-mode .day:hover {
+                transform: scale(1.5);
+                border-radius: 4px;
+                box-shadow: 0 4px 8px rgba(255, 255, 255, 0.6), 0 2px 4px rgba(255, 255, 255, 0.6);
+            }
+
+            .dark-mode .day.active {
+                transform: scale(1.5);
+                border-radius: 4px;
+                box-shadow: 0 4px 8px rgba(255, 255, 255, 0.6), 0 2px 4px rgba(255, 255, 255, 0.6);
+            }
+
+            /* Smooth Transitions */
+            .day, .tabulator, .theme-switcher, #years-container button {
+                transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            }
+
+            /* Scrollbar Styling */
+            .dark-mode ::-webkit-scrollbar {
+                width: 8px;
+            }
+
+            .dark-mode ::-webkit-scrollbar-thumb {
+                background-color: #3c3c3c;
+                border-radius: 4px;
+            }
+
+            .dark-mode ::-webkit-scrollbar-track {
+                background: #252526;
+            }
+
 
             @media (max-width: 900px) {
                 #months {
@@ -1143,7 +1119,6 @@ const darkModeJS = `
 
             } 
 
-            ${darkModeCSS}
         </style>
     </head>
 
@@ -1413,16 +1388,36 @@ const darkModeJS = `
 
             }
 
+            function initDarkLightThemeToggle(){
+              const themeToggle = document.getElementById('theme-toggle');
+              const body = document.body;
+
+              // Initialize theme
+              const savedTheme = localStorage.getItem('theme');
+              const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+              
+              if (savedTheme === 'dark' || (!savedTheme && systemDark)) {
+                  body.classList.add('dark-mode');
+                  themeToggle.checked = true;
+              }
+
+              themeToggle.addEventListener('change', () => {
+                  body.classList.toggle('dark-mode');
+                  localStorage.setItem('theme', themeToggle.checked ? 'dark' : 'light');
+              });
+            }
+
             function expectoDOMLoadum() {
                 attachEventListenersForHeatMap();
                 initYearChangeEventListeners();
                 listenForMessagesFromVSCode();
+                initDarkLightThemeToggle();
             }
 
             // Magic spell that waits for the DOM to load and then applies the magic
             document.addEventListener("DOMContentLoaded", expectoDOMLoadum);
 
-            ${darkModeJS}
+            
         </script>
     </body>
     </html>
