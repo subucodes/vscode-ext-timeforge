@@ -110,7 +110,8 @@ function setTimer() {
 
 function getWorkspaceId() {
   const workspaceFolders = vscode.workspace.workspaceFolders;
-  return workspaceFolders ? workspaceFolders[0].uri.fsPath : "Void";
+  console.log("workspace", workspaceFolders ? workspaceFolders[0] : 'none')
+  return workspaceFolders ? workspaceFolders[0].name : "Void";
 }
 
 function recordStartTime() {
@@ -778,19 +779,20 @@ function generateHTML(
             }
 
             .day:hover {
-                transform: scale(1.5);
+                transform: scale(1.4);
                 border-radius: 4px;
-                box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2), 0 2px 4px rgba(0, 0, 0, 0.1);
+                box-shadow: 0px 0px 7px 0px rgba(0, 0, 0, 0.2), 0px 0px 7px 4px rgba(0, 0, 0, 0.1);
+                
             }
 
             .day.active {
-                transform: scale(1.5);
+                transform: scale(1.4);
                 border-radius: 4px;
-                box-shadow: 0 4px 8px rgba(0, 0, 0, 0.36), 0 2px 4px rgba(0, 0, 0, 0.1);
+                box-shadow: 0px 0px 7px 0px rgba(0, 0, 0, 0.2), 0px 0px 7px 4px rgba(0, 0, 0, 0.1);
             }
 
             .level-0 {
-                background-color: #ebedf0;
+                background-color: rgb(211 212 213 / 52%);
             }
 
             .level-1 {
@@ -897,6 +899,14 @@ function generateHTML(
             .tabulator .tabulator-header .tabulator-col .tabulator-col-content {
                 padding-top: 5px;
                 padding-left: 10px;
+            }
+
+            .tabulator-row .tabulator-cell.tabulator-frozen.tabulator-frozen-left {
+                border-right: none;
+            }
+
+            .tabulator .tabulator-header .tabulator-frozen.tabulator-frozen-left {
+                border-right: none;
             }
 
             .tabulator .tabulator-footer {
@@ -1083,15 +1093,15 @@ function generateHTML(
             }
 
             .dark-mode .day:hover {
-                transform: scale(1.5);
+                transform: scale(1.4);
                 border-radius: 4px;
-                box-shadow: 0px -2px 7px 0px rgb(12 12 12 / 91%), 0 2px 7px 4px rgb(8 8 8 / 43%);
+                box-shadow: 0px 0px 7px 0px rgb(12 12 12 / 91%), 0px 0px 7px 4px rgb(8 8 8 / 48%);
             }
 
             .dark-mode .day.active {
-                transform: scale(1.5);
+                transform: scale(1.4);
                 border-radius: 4px;
-                box-shadow: 0px -2px 7px 0px rgb(12 12 12 / 91%), 0 2px 7px 4px rgb(8 8 8 / 43%);
+                box-shadow: 0px 0px 7px 0px rgb(12 12 12 / 91%), 0px 0px 7px 4px rgb(8 8 8 / 48%);
             }
 
             /* Smooth Transitions */
@@ -1118,7 +1128,13 @@ function generateHTML(
                 #months, #years-container,#heatmap,#legend   {
                     display: none;
                 }
-            } 
+            }
+                
+            @media (max-width: 500px) {
+                #workspace-tbl-container   {
+                    display: none;
+                }
+            }
 
         </style>
     </head>
@@ -1201,19 +1217,19 @@ function generateHTML(
             function paintTableWithData(tableData) {
                 let table = new Tabulator("#workspace-timspent-table", {
                     data: tableData, 
-                    height: "300px",
                     layout: "fitColumns", 
+                    height:330,
+                    autoResize:false, 
                     addRowPos: "top",          
                     pagination: "local",       
-                    paginationSize: 1,         
-                    paginationCounter: "rows", 
-                    movableColumns: true,      
+                    paginationSize: 10,         
+                    paginationCounter: "rows",    
                     initialSort: [             
                         { column: "workspace_id", dir: "asc" },
                     ],
                     columns: [
-                        { title: "Workspace", field: "workspace_id", width: 400 },
-                        { title: "Spent", field: "total_time", width: 100 },
+                        { title: "Workspace", field: "workspace_id", width:350, resizable:false, frozen:true},
+                        { title: "Spent", field: "total_time", width: 80, resizable:false, frozen:true},
                     ],
                 });
 
