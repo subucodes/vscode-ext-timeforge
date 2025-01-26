@@ -111,7 +111,7 @@ function setTimer() {
 function getWorkspaceId() {
   const workspaceFolders = vscode.workspace.workspaceFolders;
   console.log("workspace", workspaceFolders ? workspaceFolders[0] : 'none')
-  return workspaceFolders ? workspaceFolders[0].name : "Void";
+  return workspaceFolders ? workspaceFolders[0].name : "no-workspace";
 }
 
 function recordStartTime() {
@@ -638,7 +638,7 @@ function generateHTML(
     .map((value, index) => {
       const level = Math.min(value, 4); // Limit value to 4 to match levels 0-4
 
-      // Calculate the current date for the tooltip
+      // Calculate the current date 
       const currentDate = new Date(`${currentYear}-01-01`);
       currentDate.setDate(currentDate.getDate() + index);
       const formattedDate = currentDate.toISOString().slice(0, 10); // Date in YYYY-MM-DD format
@@ -825,25 +825,6 @@ function generateHTML(
                 height: 12px;
             }
 
-            .tooltip-card {
-                background-color: #ffffff;
-                border-radius: 10px;
-                box-shadow: 0px 4px 6px rgba(40, 40, 40, 0.09);
-                padding: 10px;
-                font-size: 14px;
-                color: #333;
-                text-align: left;
-                line-height: 1.4;
-                width: max-content;
-            }
-
-            .tooltip {
-                position: absolute;
-                display: none;
-                z-index: 10;
-                pointer-events: none;
-            }
-
             #workspace-tbl-container {
                 display: flex;
                 flex-direction: row;
@@ -1002,14 +983,6 @@ function generateHTML(
                 color:rgb(243, 238, 238);
                 font-weight: bold;
             }
-
-            .dark-mode .tooltip-card {
-                background-color: #252526;
-                color: rgb(243, 238, 238);
-                border: 1px solid #3c3c3c;
-                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-            }
-
 
             /* Theme Switcher Enhancements */
             .theme-switcher {
@@ -1187,7 +1160,6 @@ function generateHTML(
             <span class="day level-4"></span>
             more
         </div>
-        <div class="tooltip" id="tooltip"></div>
 
         <h4 class="flex-center time-spent-on"></h4>
 
@@ -1242,37 +1214,6 @@ function generateHTML(
             }
 
             function attachEventListenersForHeatMap() {
-                const heatmap = document.getElementById("heatmap");
-                const tooltip = document.getElementById("tooltip");
-
-                // Tooltip event listeners
-                heatmap.addEventListener("mouseover", (event) => {
-                    if (event.target.classList.contains("day")) {
-                        const value = event.target.getAttribute("data-value");
-                        const date = event.target.getAttribute("data-date");
-
-                        // Style and update the tooltip content
-                        tooltip.style.display = "block";
-                        tooltip.innerHTML =
-                            '<div class="tooltip-card">' +
-                            '<div><strong>Date:</strong> ' + date + '</div>' +
-                            '<div><strong>Hours:</strong> ' + value + '</div>' +
-                            '</div>';
-
-                    }
-                });
-
-                heatmap.addEventListener("mousemove", (event) => {
-                    tooltip.style.top = (event.pageY + 10) + "px";
-                    tooltip.style.left = (event.pageX + 10) + "px";
-                });
-
-                heatmap.addEventListener("mouseout", () => {
-                    tooltip.style.display = "none";
-                });
-
-
-
                 const daysInYear = document.querySelectorAll("#heatmap .day");
                 daysInYear.forEach((node) => {
                     node.addEventListener('click', () => {
