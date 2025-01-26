@@ -30,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Heatmap visualization of time spent.
     - Yearly navigation for past records.
     - Table breakdown of workspace time logs.
+    - Light and dark mode toggle
   - Total time spent across sessions displayed in a notification.
 
 ### Changed

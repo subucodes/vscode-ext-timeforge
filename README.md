@@ -1,6 +1,6 @@
 # TimeForge
 
-A Minimalistic timer in the status bar that auto tracks your time spent on workspaces.
+A Minimalistic timer in the status bar that tracks your time spent on workspaces.
 
 ## Features
 
@@ -19,6 +19,14 @@ A Minimalistic timer in the status bar that auto tracks your time spent on works
 ## Usage
 
 Click for the timer to start ▶️ ; click to pause ⏸️ and double click to stop ⏹️
+
+![Demo](assets/screenshots/demo.gif)
+
+## Light mode / Dark mode: 
+
+![Demo](assets/screenshots/stats_dark.png)
+
+![Demo](assets/screenshots/stats_light.png)
 
 ## Commands
 

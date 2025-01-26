@@ -1,7 +1,7 @@
 {
   "name": "timeforge",
   "displayName": "TimeForge",
-  "description": "A Minimalistic timer in the status bar that auto tracks your time spent on workspaces",
+  "description": "A Minimalistic timer in the status bar that tracks your time spent on workspaces",
   "version": "0.0.1",
   "icon": "/assets/whiteWatch.png",
   "publisher": "subbusyntax",
