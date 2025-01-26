@@ -22,11 +22,13 @@ Click for the timer to start ▶️ ; click to pause ⏸️ and double click to 
 
 ![Demo](assets/screenshots/demo.gif)
 
-## Light mode / Dark mode: 
-
-![Demo](assets/screenshots/stats_dark.png)
+## Light 🔆 mode
 
 ![Demo](assets/screenshots/stats_light.png)
+
+## Dark 🌙 mode
+
+![Demo](assets/screenshots/stats_dark.png)
 
 ## Commands
 
