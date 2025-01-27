@@ -16,8 +16,10 @@
   "categories": [
     "Other"
   ],
-  "keywords" : [
-    "timer", "simple timer", "time spent analytics"
+  "keywords": [
+    "timer",
+    "simple timer",
+    "time spent analytics"
   ],
   "bugs": {
     "url": "https://github.com/subucodes/vscode-ext-timeforge/issues"
@@ -69,8 +71,10 @@
     "eslint": "^9.16.0",
     "vscode": "^1.1.37"
   },
+  "extensionKind": [
+    "ui"
+  ],
   "dependencies": {
-    "sqlite3": "^5.1.7"
-  },
-  "extensionKind" : ["ui"]
+    "sql.js": "^1.12.0"
+  }
 }

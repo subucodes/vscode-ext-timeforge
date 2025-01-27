@@ -1,5 +1,5 @@
 const vscode = require("vscode");
-const sqlite3 = require("sqlite3").verbose();
+const initSqlJs = require("sql.js");
 const path = require("path");
 const fs = require("fs");
 
@@ -13,6 +13,7 @@ let pauseStartTime = 0;
 let timeSpentPaused = 0;
 let clickTimeout = null;
 let db;
+let dbPath;
 let lastInsertedId;
 let statsPanel = null; // Global variable to store the webview panel
 
@@ -33,26 +34,36 @@ function activate(context) {
 
 function initializeDatabase(context) {
   const dbDir = context.globalStorageUri.fsPath;
-  const dbPath = path.join(dbDir, "timeforge.db");
+  dbPath = path.join(dbDir, "timeforge.db");
 
   if (!fs.existsSync(dbDir)) {
     fs.mkdirSync(dbDir, { recursive: true });
   }
 
-  db = new sqlite3.Database(dbPath, (err) => {
-    if (err) {
-      console.error("Error opening database", err);
-    } else {
-      db.run(
-        `CREATE TABLE IF NOT EXISTS time_records (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          day TEXT,
-          start_time TEXT,
-          seconds_elapsed INTEGER,
-          workspace_id TEXT
-        )`
-      );
+  initSqlJs().then(SQL => {
+    try {
+      // Check if the database file exists and load it or create a new one
+      if (fs.existsSync(dbPath)) {
+        const filebuffer = fs.readFileSync(dbPath);
+        db = new SQL.Database(filebuffer);
+      } else {
+        db = new SQL.Database();
+      }
+
+      // Create the table
+      db.run("CREATE TABLE IF NOT EXISTS time_records (id INTEGER PRIMARY KEY AUTOINCREMENT, day TEXT, start_time TEXT, seconds_elapsed INTEGER, workspace_id TEXT)");
+
+      // Save the database back to file if it's newly created
+      if (!fs.existsSync(dbPath)) {
+        const data = db.export();
+        fs.writeFileSync(dbPath, Buffer.from(data));
+      }
+
+    } catch (err) {
+      console.error("Error initializing database:", err);
     }
+  }).catch(err => {
+    console.error("Error initializing SQL.js:", err);
   });
 }
 
@@ -122,17 +133,41 @@ function recordStartTime() {
   const day = new Date().toISOString().split("T")[0];
   const workspaceId = getWorkspaceId();
 
-  db.run(
-    `INSERT INTO time_records (day, start_time, workspace_id) VALUES (?, ?, ?)`,
-    [day, startTimeStr, workspaceId],
-    function (err) {
-      if (err) {
-        console.error("Error inserting start time", err);
-      } else {
-        lastInsertedId = this.lastID;
-      }
+  try {
+    const stmt = db.prepare(
+      "INSERT INTO time_records (day, start_time, workspace_id) VALUES (?, ?, ?)"
+    );
+    stmt.run([day, startTimeStr, workspaceId]);
+    stmt.free(); // Free the prepared statement
+
+    // Since sql.js doesn't have `lastID`, we need to query for it
+    const result = db.exec("SELECT last_insert_rowid() AS lastID");
+    if (result.length > 0 && result[0].values.length > 0) {
+      lastInsertedId = result[0].values[0][0];
+    } else {
+      console.error("Failed to retrieve last inserted ID");
+      lastInsertedId = null;
     }
-  );
+
+    // Save the database after insertion
+    saveDatabase();
+
+  } catch (err) {
+    console.error("Error inserting start time", err);
+  }
+}
+
+// Helper function to save the database
+function saveDatabase() {
+  if (db) {
+    try {
+      const data = db.export();
+      fs.writeFileSync(dbPath, Buffer.from(data));
+      console.log("Database saved after insertion.");
+    } catch (err) {
+      console.error("Error saving database after insertion:", err);
+    }
+  }
 }
 
 function updateTimer() {
@@ -272,15 +307,17 @@ function recordEndTime(elapsedTime) {
     return;
   }
 
-  db.run(
-    `UPDATE time_records SET seconds_elapsed = ? WHERE id = ?`,
-    [secondsElapsed, lastInsertedId],
-    function (err) {
-      if (err) {
-        console.error("Error updating end time", err);
-      }
-    }
-  );
+  try {
+    const stmt = db.prepare("UPDATE time_records SET seconds_elapsed = ? WHERE id = ?");
+    stmt.run([secondsElapsed, lastInsertedId]);
+    stmt.free(); // Free the prepared statement
+    
+    // Save the database after the update
+    saveDatabase();
+
+  } catch (err) {
+    console.error("Error updating end time", err);
+  }
 
   // Delay the execution of postMessage by 3 seconds
   setTimeout(() => {
@@ -308,41 +345,45 @@ function recordEndTime(elapsedTime) {
   }, 3000); // 3000 milliseconds = 3 seconds to match the end of the timer
 }
 
+
+
 function getTotalTimeSpent(workspaceId, year = null) {
   year = year === null ? new Date().getFullYear().toString() : year;
   return new Promise((resolve, reject) => {
-    db.get(
-      `SELECT SUM(seconds_elapsed) AS total_time FROM time_records WHERE workspace_id = ? and strftime('%Y', day) = ?`,
-      [workspaceId, year],
-      (err, row) => {
-        if (err) {
-          console.error("Error fetching total time spent for workspace:", err);
-          return reject(err);
-        }
-        resolve(row?.total_time || 0);
+    try {
+      const result = db.exec(
+        `SELECT SUM(seconds_elapsed) AS total_time FROM time_records WHERE workspace_id = '${workspaceId}' AND strftime('%Y', day) = '${year}'`
+      );
+      
+      if (result.length === 0 || result[0].values.length === 0) {
+        resolve(0); // No results or no rows returned, return 0
+      } else {
+        resolve(result[0].values[0][0] || 0); // Access the first (and only) value from the result
       }
-    );
+    } catch (err) {
+      console.error("Error fetching total time spent for workspace:", err);
+      reject(err);
+    }
   });
 }
 
 function getYearsBoundary() {
   return new Promise((resolve, reject) => {
-    db.get(
-      `SELECT COALESCE(MIN(strftime('%Y', day)), strftime('%Y', 'now')) AS min_year, COALESCE(MAX(strftime('%Y', day)), strftime('%Y', 'now')) AS max_year FROM time_records`,
-      (err, row) => {
-        if (err) {
-          console.error(
-            "Error fetching the year boundary from time_records:",
-            err
-          );
-          return reject(err);
-        }
-        resolve({
-          min_year: row?.min_year || null,
-          max_year: row?.max_year || null,
-        });
+    try {
+      const result = db.exec(
+        `SELECT COALESCE(MIN(strftime('%Y', day)), strftime('%Y', 'now')) AS min_year, COALESCE(MAX(strftime('%Y', day)), strftime('%Y', 'now')) AS max_year FROM time_records`
+      );
+      
+      if (result.length === 0 || result[0].values.length === 0) {
+        resolve({ min_year: null, max_year: null }); // No results
+      } else {
+        const [min_year, max_year] = result[0].values[0];
+        resolve({ min_year, max_year });
       }
-    );
+    } catch (err) {
+      console.error("Error fetching the year boundary from time_records:", err);
+      reject(err);
+    }
   });
 }
 
@@ -375,12 +416,16 @@ function deactivate() {
     clearInterval(timer);
   }
   disposeStatusBarItem();
+  
   if (db) {
-    db.close((err) => {
-      if (err) {
-        console.error("Error closing database", err);
-      }
-    });
+    try {
+      const data = db.export();
+      fs.writeFileSync(dbPath, Buffer.from(data));
+      console.log("Database saved successfully.");
+    } catch (err) {
+      console.error("Error saving database:", err);
+    }
+    db = null; // Clear the database reference
   }
 }
 
@@ -536,8 +581,8 @@ async function showStats(context) {
 }
 
 async function fetchDataForThisDate(inputDate) {
-  return new Promise((resolve, reject) => {
-    db.all(
+  try {
+    const result = db.exec(
       `SELECT 
           workspace_id,
           CASE 
@@ -549,19 +594,24 @@ async function fetchDataForThisDate(inputDate) {
                   printf('%d hrs', SUM(seconds_elapsed) / 3600)
           END AS total_time
       FROM time_records
-      WHERE day = ?
+      WHERE day = '${inputDate}'
       GROUP BY workspace_id
-      ORDER BY workspace_id;`,
-      [inputDate],
-      (err, rows) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve(rows);
-        }
-      }
+      ORDER BY workspace_id;`
     );
-  });
+
+    if (result.length === 0 || result[0].values.length === 0) {
+      return []; // No results
+    }
+    
+    // Transform the result into an array of objects
+    return result[0].values.map(row => ({
+      workspace_id: row[0],
+      total_time: row[1]
+    }));
+  } catch (err) {
+    console.error("Error fetching data for date:", err);
+    throw err; // Re-throw the error so it can be caught by the caller
+  }
 }
 
 async function generateHeatmapData(currentYear = null) {
@@ -569,40 +619,38 @@ async function generateHeatmapData(currentYear = null) {
     currentYear = new Date().getFullYear().toString();
   }
 
-  return new Promise((resolve, reject) => {
-    db.all(
+  try {
+    const result = db.exec(
       `SELECT day, SUM(seconds_elapsed) AS total_time 
        FROM time_records 
-       WHERE strftime('%Y', day) = ? 
+       WHERE strftime('%Y', day) = '${currentYear}' 
        GROUP BY day 
-       ORDER BY day DESC`,
-      [currentYear],
-      (err, rows) => {
-        if (err) {
-          reject(err);
-        } else {
-          // Map the rows to heatmapData objects that include both the day and the heatmap value
-          const heatmapData = rows.map((row) => {
-            const totalTime = row.total_time || 0;
-            let heatmapValue;
-
-            if (totalTime > 7 * 3600) heatmapValue = 4; // 7 hours
-            else if (totalTime > 5 * 3600) heatmapValue = 3; // 5 hours
-            else if (totalTime > 3 * 3600) heatmapValue = 2; // 3 hours
-            else if (totalTime > 1 * 3600) heatmapValue = 1; // 1 hour
-            else heatmapValue = 0; // Less than 1 hour
-
-            return {
-              day: row.day, // Include the actual day
-              value: heatmapValue, // Include the heatmap level
-            };
-          });
-
-          resolve(heatmapData);
-        }
-      }
+       ORDER BY day DESC`
     );
-  });
+
+    if (result.length === 0 || result[0].values.length === 0) {
+      return []; // No results
+    }
+
+    return result[0].values.map(row => {
+      const totalTime = row[1] || 0; // row[1] is the total_time
+      let heatmapValue;
+
+      if (totalTime > 7 * 3600) heatmapValue = 4; // 7 hours
+      else if (totalTime > 5 * 3600) heatmapValue = 3; // 5 hours
+      else if (totalTime > 3 * 3600) heatmapValue = 2; // 3 hours
+      else if (totalTime > 1 * 3600) heatmapValue = 1; // 1 hour
+      else heatmapValue = 0; // Less than 1 hour
+
+      return {
+        day: row[0], // row[0] is the day
+        value: heatmapValue,
+      };
+    });
+  } catch (err) {
+    console.error("Error generating heatmap data:", err);
+    throw err; // Re-throw the error so it can be caught by the caller
+  }
 }
 
 function generateHTML(
