@@ -2,7 +2,7 @@
   "name": "timeforge",
   "displayName": "TimeForge",
   "description": "A Minimalistic timer in the status bar that tracks your time spent on workspaces",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "icon": "/assets/blueWatch.png",
   "publisher": "subbusyntax",
   "galleryBanner": {
