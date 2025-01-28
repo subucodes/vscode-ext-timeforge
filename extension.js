@@ -35,14 +35,27 @@ function initializeDatabase(context) {
   const dbDir = context.globalStorageUri.fsPath;
   const dbPath = path.join(dbDir, "timeforge.db");
 
+  // Ensure the database directory exists
   if (!fs.existsSync(dbDir)) {
     fs.mkdirSync(dbDir, { recursive: true });
   }
 
+  // Open the database
   db = new sqlite3.Database(dbPath, (err) => {
     if (err) {
       console.error("Error opening database", err);
     } else {
+      // Enable Write-Ahead Logging (WAL) mode
+      db.run(`PRAGMA journal_mode=WAL;`, (err) => {
+        if (err) {
+          console.error("Error setting WAL mode", err);
+        }
+      });
+
+      // Set a busy timeout to handle concurrent writes
+      db.configure("busyTimeout", 5000); // Wait up to 5 seconds for a lock
+
+      // Create the table if it doesn't exist
       db.run(
         `CREATE TABLE IF NOT EXISTS time_records (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -50,10 +63,17 @@ function initializeDatabase(context) {
           start_time TEXT,
           seconds_elapsed INTEGER,
           workspace_id TEXT
-        )`
+        )`,
+        (err) => {
+          if (err) {
+            console.error("Error creating table", err);
+          }
+        }
       );
     }
   });
+
+  return db; // Return the database object for further use
 }
 
 function initializeStatusBarItem() {
@@ -122,18 +142,28 @@ function recordStartTime() {
   const day = new Date().toISOString().split("T")[0];
   const workspaceId = getWorkspaceId();
 
+  // Attempt to insert the start time into the database
   db.run(
     `INSERT INTO time_records (day, start_time, workspace_id) VALUES (?, ?, ?)`,
     [day, startTimeStr, workspaceId],
     function (err) {
       if (err) {
-        console.error("Error inserting start time", err);
+        if (err.code === 'SQLITE_BUSY') {
+          console.error("Database is busy. Retrying...");
+          // Optionally implement a retry mechanism here
+          setTimeout(() => {
+            recordStartTime(); // Retry after a short delay
+          }, 100); // Retry after 100ms
+        } else {
+          console.error("Error inserting start time", err);
+        }
       } else {
         lastInsertedId = this.lastID;
       }
     }
   );
 }
+
 
 function updateTimer() {
   if (!isPaused) {
@@ -272,15 +302,29 @@ function recordEndTime(elapsedTime) {
     return;
   }
 
-  db.run(
-    `UPDATE time_records SET seconds_elapsed = ? WHERE id = ?`,
-    [secondsElapsed, lastInsertedId],
-    function (err) {
-      if (err) {
-        console.error("Error updating end time", err);
+  // Function to update the seconds_elapsed in the database
+  const updateRecord = (retries = 3) => {
+    db.run(
+      `UPDATE time_records SET seconds_elapsed = ? WHERE id = ?`,
+      [secondsElapsed, lastInsertedId],
+      function (err) {
+        if (err) {
+          if (err.code === 'SQLITE_BUSY' && retries > 0) {
+            console.error("Database is busy. Retrying...");
+            // Retry after a short delay
+            setTimeout(() => {
+              updateRecord(retries - 1); // Decrement retry count
+            }, 100); // Retry after 100ms
+          } else {
+            console.error("Error updating end time", err);
+          }
+        }
       }
-    }
-  );
+    );
+  };
+
+  // Start the update process
+  updateRecord();
 
   // Delay the execution of postMessage by 3 seconds
   setTimeout(() => {
@@ -307,6 +351,7 @@ function recordEndTime(elapsedTime) {
     }
   }, 3000); // 3000 milliseconds = 3 seconds to match the end of the timer
 }
+
 
 function getTotalTimeSpent(workspaceId, year = null) {
   year = year === null ? new Date().getFullYear().toString() : year;
@@ -414,7 +459,7 @@ async function showStats(context) {
     }
   );
   const iconPath = vscode.Uri.file(
-    path.join(context.extensionPath, "assets", "whiteWatch.png")
+    path.join(context.extensionPath, "assets", "watchIcon.svg")
   );
   statsPanel.iconPath = iconPath;
   statsPanel.webview.html = generateHTML(
