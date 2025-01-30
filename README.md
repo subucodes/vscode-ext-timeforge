@@ -8,6 +8,7 @@ A Minimalistic timer in the status bar that tracks your time spent on workspaces
 - 📂 Workspace-based time monitoring
 - 📊 Github like heatmap to represent your time spent
 - ⚡ Easy-to-use interface integrated with VS Code
+- ♾️ Supports multiples instances of VS Code running parallelly
 
 ## Installation
 
@@ -21,6 +22,8 @@ A Minimalistic timer in the status bar that tracks your time spent on workspaces
 Click for the timer to start ▶️ ; click to pause ⏸️ and double click to stop ⏹️
 
 ![Demo](assets/screenshots/demo.gif)
+
+### Open the statistics using  Ctrl+Shift+P (Windows/Linux) or Cmd+Shift+P (macOS) `>Timeforge Stats`
 
 ## Light 🔆 mode
 
